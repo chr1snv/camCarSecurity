@@ -107,12 +107,29 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <th>Mag Alarm Diff</th>
           <th>Mag Alrm Trgr</th>
           <th>Alarm Output</th>
+          <th>Stat Ping</th>
         </tr>
         <tr>
           <td id="magHeading"></td>
           <td id="magAlarmDiff"></td>
           <td id="magAlarmTrgr"></td>
           <td id="alarmOutput"></td>
+          <td id="statusPing"></td>
+        </tr>
+      </table>
+      Settings
+      <table>
+        <tr>
+          <th>Mag Threshold</th>
+          <th>Cam Quality</th>
+          <th>Cam Resolution</th>
+          <th>Tx Power</th>
+        </tr>
+        <tr>
+          <td id="magThreshold"></td>
+          <td id="camQuality"></td>
+          <td id="camResolution"></td>
+          <td id="txPower"></td>
         </tr>
       </table>
       <table>
@@ -123,11 +140,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <td><button onclick="sendCamQuality();">Set Cam Quality (0-63)</button></td>
           <td><input id="txPowerNum" type="number" min="8" max="80" value="50" title="[8, 84] -> 2dBm - 20dBm"></input></td>
           <td><button onclick="sendTxPower();">Set Tx Power (8-80)</button></td>
-          
         </tr>
         <tr>
-          <td><button onclick="sendCmd('camFlipVertical', 1);">Cam Vert Flip On</button></td>
-          <td><button onclick="sendCmd('camFlipVertical', 0);">Cam Vert Flip Off</button></td>
+          <td><button onclick="sendCmd('camFlipVertical', 1);">Vert Flip</button></td>
+          <td><button onclick="sendCmd('camFlipVertical', 0);">Vert No Flip</button></td>
+          <td><button onclick="sendCmd('camFlipHoriz', 1);">Horiz Flip</button></td>
+          <td><button onclick="sendCmd('camFlipHoriz', 0);">Horiz No Flip</button></td>
+          <td><button onclick="camRot90(1);">90deg Rotate</button></td>
+          <td><button onclick="camRot90(0);">No Rotate</button></td>
         </tr>
         <tr>
           <td><button onclick="sendCmd('camResolution', 'QVGA');">QVGA</button></td>
@@ -137,7 +157,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         </tr>
       </table>
    <script>
-    const clickableButtonBgColor = "#45B147;"; //rgb(69, 177, 71)";
+    const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
     const nonClickableButtonBgColor = "#8fa9d7";
     function sendCmd(x, val) {
       var xhr = new XMLHttpRequest();
@@ -162,6 +182,17 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       sendCmd("txPower", document.getElementById("txPowerNum").value );
     }
 
+    function camRot90(rot){
+      let photoElm = document.getElementById("photo");
+      if( rot ){
+        let widthMinHeight = (photoElm.width - photoElm.height)/2;
+        photoElm.style = "transform: rotate(-90deg); margin-bottom: " + widthMinHeight + "px; margin-top: " + widthMinHeight + "px;";
+      }else{
+        photoElm.style = "";
+      }
+
+    }
+
     window.onload = document.getElementById("photo").src = window.location.href.slice(0, -1) + ":81/stream";
 
     function strFromStrRange(combinedStr, strt, lenDel){
@@ -175,16 +206,25 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var inProgressRequest = false;
     var numLoopsInProgress = 0;
     const MaxProgressLoops = 10;
+
+    var numStatusRequests = 0;
+    const numStatusRequestsBeforeSettingsRequest = 100;
     function MainLoop(){
       if(!inProgressRequest){
+        const timeRequestedStatus = new Date();
         var xhr = new XMLHttpRequest();
         xhr.timeout = 300;
         xhr.responseType = "text";
         xhr.onreadystatechange = function(){
           if(xhr.readyState == 4){
             if(xhr.status == 200 || xhr.status == 0){
-              //document.getElementById("status").innerText = xhr.responseText;
+              const now = new Date();
+              const diff = now - timeRequestedStatus;
+              document.getElementById("statusPing").innerText = diff;
               inProgressRequest = false;
+
+              ++numStatusRequests;
+
               let a = xhr.responseText;
               let rL = 1024;
 
@@ -236,7 +276,29 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         }
         xhr.onabort = xhr.ontimeout;
         xhr.onerror = xhr.ontimeout;
-        xhr.open("GET", "/status", true);
+        if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
+          numStatusRequests = 0;
+          xhr.onreadystatechange = function(){
+            if(xhr.readyState == 4){
+              if(xhr.status == 200 || xhr.status == 0){
+
+                let magThreshold  = strFromStrRange(a, rL-20, 5);
+                let camQuality    = strFromStrRange(a, rL-15, 5);
+                let camResolution = strFromStrRange(a, rL-10, 5);
+                let txPower       = strFromStrRange(a, rL-5, 5);
+
+                document.getElementById("magThreshold").innerText  = magThreshold;
+                document.getElementById("camQuality").innerText    = camQuality;
+                document.getElementById("camResolution").innerText = camResolution;
+                document.getElementById("txPower").innerText       = txPower;
+              }
+            }
+          }
+
+          xhr.open("GET", "/settings", true);
+        }else{
+          xhr.open("GET", "/status", true);
+        }
         xhr.send();
         inProgressRequest = true;
       }else{
@@ -284,6 +346,19 @@ static esp_err_t status_handler(httpd_req_t *req){
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-30]), 5, "%i\n",magZ);//compass.magSample.Z);
 
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-25]), 5, "%f\n",magHeading);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-20]), 5, "%i\n",magAlarmDiff);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-15]), 5, "%i\n",magAlarmTriggered);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-10]), 5, "%i\n",alarmOutput);
+
+  httpd_resp_set_type(req, "text/html");
+  return httpd_resp_send(req, lastCsiInfoStr, CSI_INF_STR_LEN);
+}
+
+static esp_err_t settings_handler(httpd_req_t *req){
+                let camQuality    = strFromStrRange(a, rL-15, 5);
+                let camResolution = strFromStrRange(a, rL-10, 5);
+                let txPower       = strFromStrRange(a, rL-5, 5);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-25]), 5, "%f\n",MAG_ALARM_DELTA_THRESHOLD);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-20]), 5, "%i\n",magAlarmDiff);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-15]), 5, "%i\n",magAlarmTriggered);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-10]), 5, "%i\n",alarmOutput);
@@ -392,6 +467,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
   size_t buf_len;
   char variable[32] = {0,};
   char value[32] = {0,};
+
+  int sucessfulyHandledACmd = 0;
   
   buf_len = httpd_req_get_url_query_len(req) + 1;
   if (buf_len > 1) {
@@ -421,15 +498,15 @@ static esp_err_t cmd_handler(httpd_req_t *req){
   //camera setting changes
   sensor_t * s = esp_camera_sensor_get();
 
-  if(!strcmp(variable, "camFlipVertical")) {
-    //flip the camera vertically
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK ){
+  if(!strcmp(variable, "camFlipVertical")) { //flip the camera vertically
+    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK )
       s->set_vflip(s, atoi(value));          // 0 = disable , 1 = enable
-      // mirror effect
-      //s->set_hmirror(s, 1);          // 0 = disable , 1 = enable
-    }
   }
-  if(!strcmp(variable, "camResolution")){
+  else if(!strcmp(variable, "camFlipHoriz")) { //flip the camera horizontally
+    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK )
+      s->set_hmirror(s, atoi(value));          // 0 = disable , 1 = enable
+  }
+  else if(!strcmp(variable, "camResolution")){
     if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK){
       if( !strcmp(value, "QVGA") )
         s->set_framesize(s, FRAMESIZE_QVGA );
@@ -442,7 +519,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
   }
 
-  if(!strcmp(variable, "camQuality")){
+  else if(!strcmp(variable, "camQuality")){
     if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK)
       s->set_quality(s, atoi(value));
   }
@@ -450,10 +527,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
   //config.frame_size = FRAMESIZE_QVGA;
   //config.jpeg_quality = 63;
 
-  int res = 0;
-  
   //servo position control
-  if(!strcmp(variable, "up")) {
+  else if(!strcmp(variable, "up")) {
     if(servo1Pos <= 170) {
       servo1Pos += 10;
       servo1.write(servo1Pos);
@@ -509,25 +584,22 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     ArmAlarm(false);
     Serial.println("DisarmAlarm");
   }
-
   else if(!strcmp(variable, "magAlarmThreshold")){
     if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK)
       MAG_ALARM_DELTA_THRESHOLD = atoi(value);
   }
-
   else if(!strcmp(variable, "txPower")){
     if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK)
       MAG_ALARM_DELTA_THRESHOLD = atoi(value);
   }
-
   else {
-    res = -1;
+    sucessfulyHandledACmd = -1;
   }
 
-  if(res){
+  if(sucessfulyHandledACmd){
     return httpd_resp_send_500(req);
   }
-
+  //else did not understand or was able to handle the requested cmd
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   return httpd_resp_send(req, NULL, 0);
 }
@@ -549,6 +621,13 @@ void startCameraServer(){
     .user_ctx  = NULL
   };
 
+   httpd_uri_t settings_uri = {
+    .uri       = "/settings",
+    .method    = HTTP_GET,
+    .handler   = settings_handler,
+    .user_ctx  = NULL
+  };
+
   httpd_uri_t cmd_uri = {
     .uri       = "/action",
     .method    = HTTP_GET,
@@ -565,6 +644,7 @@ void startCameraServer(){
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &cmd_uri);
     httpd_register_uri_handler(camera_httpd, &status_uri);
+    httpd_register_uri_handler(camera_httpd, &settings_uri);
   }
   config.server_port += 1;
   config.ctrl_port += 1;

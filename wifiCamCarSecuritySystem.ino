@@ -136,10 +136,10 @@ void loop() {
     Serial.println("");
   }
 
+  //read sensors
   ori_sense();
-
-  if( alarmArmed )
-  {
+  //check if alarm conditions met
+  if( alarmArmed ){
     mag_checkAlarmTriggered();
   }
 
