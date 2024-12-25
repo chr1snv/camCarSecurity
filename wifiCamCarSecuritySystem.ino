@@ -32,13 +32,13 @@
 #define SERVO_1      12//14
 #define SERVO_2      13//15
 
-#define ALARM_OUTPUT_PIN 2
+#define ALARM_OUTPUT_PIN 2 //pull down strapping pin
 
 #define LightLEDPin  4
 #define redLEDPin    33
 bool lightLedValue = false;
 
-#define SERVO_STEP   5
+//#define SERVO_STEP   5 //pull up strapping pin
 
 bool alarmArmed = false;
 bool alarmOutput = false;
@@ -57,8 +57,8 @@ void UpdateAlarmOutput(bool on){
 Servo servo1;
 Servo servo2;
 
-int servo1Pos = 0;
-int servo2Pos = 0;
+int servo1Angle = 90;
+int servo2Angle = 90;
 
 
 void ArmAlarm(bool enable){
@@ -74,15 +74,16 @@ void ArmAlarm(bool enable){
 
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+
+  //init servos
   servo1.setPeriodHertz(50);    // standard 50 hz servo
   servo2.setPeriodHertz(50);    // standard 50 hz servo
-  
-  servo1.attach(SERVO_1, 1000, 2000);
-  servo2.attach(SERVO_2, 1000, 2000);
-  
-  servo1.write(servo1Pos);
-  servo2.write(servo2Pos);
+  servo1.attach( SERVO_1 ); //defaults to 500, 2500 microseconds //, 1000, 2000);
+  servo2.attach( SERVO_2 ); //, 1000, 2000);
+  servo1.write(servo1Angle);
+  servo2.write(servo2Angle);
 
+  //init lights
   pinMode(LightLEDPin, OUTPUT);
   pinMode(redLEDPin, OUTPUT);
   digitalWrite(redLEDPin, LOW);
@@ -92,7 +93,7 @@ void setup() {
   temp_init();
   camera_init();
 
-
+  //init serial ouput
   Serial.begin(115200);
   Serial.setDebugOutput(false);
 
@@ -109,7 +110,7 @@ void setup() {
   //turn on status led
   digitalWrite(redLEDPin, HIGH);
 
-  ArmAlarm(false); //set the sire output low
+  ArmAlarm(false); //set the siren output low
 
   //esp_wifi_init();
   wifi_scanNetworks();

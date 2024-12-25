@@ -231,24 +231,24 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
               if ( xhr.responseText.length < rL )
                 return;
 
-              let alarmArmed = strFromStrRange(a, rL-80, 5);
-              let magArmX    = strFromStrRange(a, rL-75, 5);
-              let magArmY    = strFromStrRange(a, rL-70, 5);
-              let magArmZ    = strFromStrRange(a, rL-65, 5);
+              let alarmArmed = parseInt(strFromStrRange(a, rL-80, 5));
+              let magArmX    = parseInt(strFromStrRange(a, rL-75, 5));
+              let magArmY    = parseInt(strFromStrRange(a, rL-70, 5));
+              let magArmZ    = parseInt(strFromStrRange(a, rL-65, 5));
             
-              let servo1     = strFromStrRange(a, rL-60, 5);
-              let servo2     = strFromStrRange(a, rL-55, 5);
+              let servo1     = parseInt(strFromStrRange(a, rL-60, 5));
+              let servo2     = parseInt(strFromStrRange(a, rL-55, 5));
 
-              let rssi = strFromStrRange(a, rL-50, 5);
-              let temp = strFromStrRange(a, rL-45, 5);
-              let magX = strFromStrRange(a, rL-40, 5);
-              let magY = strFromStrRange(a, rL-35, 5);
-              let magZ = strFromStrRange(a, rL-30, 5);
+              let rssi = parseInt(strFromStrRange(a, rL-50, 5));
+              let temp = parseInt(strFromStrRange(a, rL-45, 5));
+              let magX = parseInt(strFromStrRange(a, rL-40, 5));
+              let magY = parseInt(strFromStrRange(a, rL-35, 5));
+              let magZ = parseInt(strFromStrRange(a, rL-30, 5));
 
-              let magHeading   = strFromStrRange(a, rL-25, 5);
-              let magAlarmDiff = strFromStrRange(a, rL-20, 5);
-              let magAlarmTrgr = strFromStrRange(a, rL-15, 5);
-              let alarmOutput  = strFromStrRange(a, rL-10, 5);
+              let magHeading   = parseFloat(strFromStrRange(a, rL-25, 5));
+              let magAlarmDiff = parseInt(strFromStrRange(a, rL-15, 5));
+              let magAlarmTrgr = parseInt(strFromStrRange(a, rL-10, 5));
+              let alarmOutput  = parseInt(strFromStrRange(a, rL-5, 5));
 
               document.getElementById("alarmArmed").innerText = alarmArmed;
               document.getElementById("magArmX").innerText    = magArmX;
@@ -281,11 +281,12 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           xhr.onreadystatechange = function(){
             if(xhr.readyState == 4){
               if(xhr.status == 200 || xhr.status == 0){
-
-                let magThreshold  = strFromStrRange(a, rL-20, 5);
-                let camQuality    = strFromStrRange(a, rL-15, 5);
-                let camResolution = strFromStrRange(a, rL-10, 5);
-                let txPower       = strFromStrRange(a, rL-5, 5);
+                let a = xhr.responseText;
+                let rL = 20;
+                let magThreshold  = strFromStrRange(a, 0, 5);
+                let camQuality    = strFromStrRange(a, 5, 5);
+                let camResolution = strFromStrRange(a, 10, 5);
+                let txPower       = strFromStrRange(a, 15, 5);
 
                 document.getElementById("magThreshold").innerText  = magThreshold;
                 document.getElementById("camQuality").innerText    = camQuality;
@@ -331,40 +332,45 @@ static esp_err_t status_handler(httpd_req_t *req){
   temp_sense();
   sense_wifi_rssi();
 
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-80]), 5, "%i\n",alarmArmed);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-75]), 5, "%i\n",magAX);//alarmInit_magSample.X);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-70]), 5, "%i\n",magAY);//alarmInit_magSample.Y);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-65]), 5, "%i\n",magAZ);//alarmInit_magSample.Z);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-80]), 5,  "%i\n", alarmArmed);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-75]), 5,  "%i\n", magAX);//alarmInit_magSample.X);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-70]), 5,  "%i\n", magAY);//alarmInit_magSample.Y);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-65]), 5,  "%i\n", magAZ);//alarmInit_magSample.Z);
 
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-60]), 5, "%i\n",servo1Pos);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-55]), 5, "%i\n",servo2Pos);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-60]), 5,  "%i\n",servo1Angle);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-55]), 5,  "%i\n",servo2Angle);
 
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-50]), 5, "%i\n",staRssi);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-45]), 4, "%i\n",lastTemperature);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-40]), 5, "%i\n",magX);//compass.magSample.X);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-35]), 5, "%i\n",magY);//compass.magSample.Y);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-30]), 5, "%i\n",magZ);//compass.magSample.Z);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-50]), 5,  "%i\n", staRssi);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-45]), 4,  "%i\n", lastTemperature);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-40]), 5,  "%i\n", magX);//compass.magSample.X);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-35]), 5,  "%i\n", magY);//compass.magSample.Y);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-30]), 5,  "%i\n", magZ);//compass.magSample.Z);
 
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-25]), 5, "%f\n",magHeading);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-20]), 5, "%i\n",magAlarmDiff);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-15]), 5, "%i\n",magAlarmTriggered);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-10]), 5, "%i\n",alarmOutput);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-25]), 10, "%f\n", magHeading);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-15]), 5,  "%i\n", magAlarmDiff);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-10]), 5,  "%i\n", magAlarmTriggered);
+  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-5]),  5,  "%i\n", alarmOutput);
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, lastCsiInfoStr, CSI_INF_STR_LEN);
 }
 
+
+#define SETTINGS_RESPONSE_LENGTH 20
+static char settingsResponse[SETTINGS_RESPONSE_LENGTH];
 static esp_err_t settings_handler(httpd_req_t *req){
-                let camQuality    = strFromStrRange(a, rL-15, 5);
-                let camResolution = strFromStrRange(a, rL-10, 5);
-                let txPower       = strFromStrRange(a, rL-5, 5);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-25]), 5, "%f\n",MAG_ALARM_DELTA_THRESHOLD);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-20]), 5, "%i\n",magAlarmDiff);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-15]), 5, "%i\n",magAlarmTriggered);
-  snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-10]), 5, "%i\n",alarmOutput);
+
+  sensor_t * s = esp_camera_sensor_get();
+  int8_t txPower;
+  esp_wifi_get_max_tx_power(&txPower);
+
+  snprintf( &(settingsResponse[0]),  5, "%i\n",MAG_ALARM_DELTA_THRESHOLD);
+  snprintf( &(settingsResponse[5]),  5, "%i\n",s->status.quality);
+  snprintf( &(settingsResponse[10]), 5, "%i\n",s->status.framesize);
+  snprintf( &(settingsResponse[15]), 5, "%i\n",txPower);
 
   httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, lastCsiInfoStr, CSI_INF_STR_LEN);
+  return httpd_resp_send(req, settingsResponse, SETTINGS_RESPONSE_LENGTH);
 }
 
 static esp_err_t stream_handler(httpd_req_t *req){
@@ -529,45 +535,45 @@ static esp_err_t cmd_handler(httpd_req_t *req){
 
   //servo position control
   else if(!strcmp(variable, "up")) {
-    if(servo1Pos <= 170) {
-      servo1Pos += 10;
-      servo1.write(servo1Pos);
+    if(servo1Angle <= 170) {
+      servo1Angle += 10;
+      servo1.write(servo1Angle);
     }
-    Serial.println(servo1Pos);
+    Serial.println(servo1Angle);
     Serial.println("Up");
   }
   else if(!strcmp(variable, "left")) {
-    if(servo2Pos <= 170) {
-      servo2Pos += 10;
-      servo2.write(servo2Pos);
+    if(servo2Angle <= 170) {
+      servo2Angle += 10;
+      servo2.write(servo2Angle);
     }
-    Serial.println(servo2Pos);
+    Serial.println(servo2Angle);
     Serial.println("Left");
   }
   else if(!strcmp(variable, "right")) {
-    if(servo2Pos >= 10) {
-      servo2Pos -= 10;
-      servo2.write(servo2Pos);
+    if(servo2Angle >= 10) {
+      servo2Angle -= 10;
+      servo2.write(servo2Angle);
     }
-    Serial.println(servo2Pos);
+    Serial.println(servo2Angle);
     Serial.println("Right");
   }
   else if(!strcmp(variable, "down")) {
-    if(servo1Pos >= 10) {
-      servo1Pos -= 10;
-      servo1.write(servo1Pos);
+    if(servo1Angle >= 10) {
+      servo1Angle -= 10;
+      servo1.write(servo1Angle);
     }
-    Serial.println(servo1Pos);
+    Serial.println(servo1Angle);
     Serial.println("Down");
   }
   else if(!strcmp(variable, "center")) {
-    servo1Pos = 0;
-    servo2Pos = 0;
-    servo1.write(servo1Pos);
-    servo2.write(servo2Pos);
+    servo1Angle = 90;
+    servo2Angle = 90;
+    servo1.write(servo1Angle);
+    servo2.write(servo2Angle);
     
-    Serial.print(servo1Pos);
-    Serial.println(servo2Pos);
+    Serial.print(servo1Angle);
+    Serial.println(servo2Angle);
     Serial.println("center");
   }
   else if(!strcmp(variable, "Light")){
