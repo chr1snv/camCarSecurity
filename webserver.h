@@ -1,5 +1,9 @@
 
+#include "esp_http_server.h"
+//#include "esp_http_client.h"
+#include "HTTPClient.h"
 
+#define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 static const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
@@ -133,6 +137,19 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         </tr>
       </table>
       <table>
+        <tr><th>Server Url</th><td id="svrUrl"></td></tr>
+        <tr><th>Net0</th><td id="net0"></td><th>Pass0</th><td id="pass0"></td></tr>
+        <tr><th>Net1</th><td id="net1"></td><th>Pass1</th><td id="pass1"></td></tr>
+        <tr><th>Net2</th><td id="net2"></td><th>Pass2</th><td id="pass2"></td></tr>
+        <tr><th>Net3</th><td id="net3"></td><th>Pass3</th><td id="pass3"></td></tr>
+        <tr><th>Net4</th><td id="net4"></td><th>Pass4</th><td id="pass4"></td></tr>
+        <tr><th>Net5</th><td id="net5"></td><th>Pass5</th><td id="pass5"></td></tr>
+        <tr><th>Net6</th><td id="net6"></td><th>Pass6</th><td id="pass6"></td></tr>
+        <tr><th>Net7</th><td id="net7"></td><th>Pass7</th><td id="pass7"></td></tr>
+        <tr><th>Net8</th><td id="net8"></td><th>Pass8</th><td id="pass8"></td></tr>
+        <tr><th>Net9</th><td id="net9"></td><th>Pass9</th><td id="pass9"></td></tr>
+      </table>
+      <table>
         <tr>
           <td><input id="magThresholdNum" type="number" min="0" max="500" value="20"></input></td>
           <td><button onclick="sendMagThreshold();">Set Mag Alarm Threshold</button></td>
@@ -154,6 +171,15 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <td><button onclick="sendCmd('camResolution', 'CIF');">CIF</button></td>
           <td><button onclick="sendCmd('camResolution', 'VGA');">VGA</button></td>
           <td><button onclick="sendCmd('camResolution', 'SVGA');">SVGA</button></td>
+        </tr>
+        <tr>
+          <td><input id="svrUrlVal" type="text"></input></td>
+          <td><button onclick="sendSvrUrl()">Set Cloud Server Url (http(s)://<ip/url>:port)</button></td>
+        </tr>
+        <tr>
+          <td><input id="ssid" type="text"></input></td>
+          <td><input id="pass" type="text"></input></td>
+          <td><button onclick="sendWifi_SSID_Pass()">Add SSID and Password</button></td>
         </tr>
       </table>
    <script>
@@ -180,6 +206,12 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     }
     function sendTxPower(){
       sendCmd("txPower", document.getElementById("txPowerNum").value );
+    }
+    function sendSvrUrl(){
+      sendCmd("svrUrl", document.getElementById("svrUrlVal").value );
+    }
+    function sendWifi_SSID_Pass(){
+      sendCmd("ssidPass", document.getElementById("ssid").value.padEnd(32) + document.getElementById("pass").value.padEnd(32) );
     }
 
     function camRot90(rot){
@@ -226,9 +258,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
               ++numStatusRequests;
 
               let a = xhr.responseText;
-              let rL = 1024;
-
-              if ( xhr.responseText.length < rL )
+              let rL = xhr.responseText.length;
+              if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
                 return;
 
               let alarmArmed = parseInt(strFromStrRange(a, rL-80, 5));
@@ -282,16 +313,30 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
             if(xhr.readyState == 4){
               if(xhr.status == 200 || xhr.status == 0){
                 let a = xhr.responseText;
-                let rL = 20;
+                let rL = a.length;
+                if( rL < 10)
+                  return; //avoid printing undefined
+
                 let magThreshold  = strFromStrRange(a, 0, 5);
                 let camQuality    = strFromStrRange(a, 5, 5);
                 let camResolution = strFromStrRange(a, 10, 5);
                 let txPower       = strFromStrRange(a, 15, 5);
 
+                let svrUrl        = strFromStrRange(a, 20, 32);
+
                 document.getElementById("magThreshold").innerText  = magThreshold;
                 document.getElementById("camQuality").innerText    = camQuality;
                 document.getElementById("camResolution").innerText = camResolution;
                 document.getElementById("txPower").innerText       = txPower;
+
+                document.getElementById("svrUrl").innerText       = svrUrl;
+
+                let MAX_STORED_NETWORKS = 10;
+                let NETWORK_NAME_LEN = 32;
+                for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
+                  document.getElementById("net"+i).innerText       = strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i, 32);
+                  document.getElementById("pass"+i).innerText       = strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i+32, 32);
+                }
               }
             }
           }
@@ -312,6 +357,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     }
 
     setInterval(MainLoop, 100); //100ms (10x a second)
+    camRot90(true);
   </script>
   </body>
 </html>
@@ -322,16 +368,7 @@ static esp_err_t index_handler(httpd_req_t *req){
   return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
 }
 
-static esp_err_t status_handler(httpd_req_t *req){
-  //prints the last 
-  //wifi_csi info
-  //temperature
-  //magnetic field sample
-  //acceleration reading
-
-  temp_sense();
-  sense_wifi_rssi();
-
+void fillStatusString(){
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-80]), 5,  "%i\n", alarmArmed);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-75]), 5,  "%i\n", magAX);//alarmInit_magSample.X);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-70]), 5,  "%i\n", magAY);//alarmInit_magSample.Y);
@@ -350,24 +387,50 @@ static esp_err_t status_handler(httpd_req_t *req){
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-15]), 5,  "%i\n", magAlarmDiff);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-10]), 5,  "%i\n", magAlarmTriggered);
   snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-5]),  5,  "%i\n", alarmOutput);
+}
+
+static esp_err_t status_handler(httpd_req_t *req){
+  //prints the last 
+  //wifi_csi info
+  //temperature
+  //magnetic field sample
+  //acceleration reading
+
+  fillStatusString();
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, lastCsiInfoStr, CSI_INF_STR_LEN);
 }
 
 
-#define SETTINGS_RESPONSE_LENGTH 20
-static char settingsResponse[SETTINGS_RESPONSE_LENGTH];
+
 static esp_err_t settings_handler(httpd_req_t *req){
+
+  #define SETTINGS_RESPONSE_LENGTH 52+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)
+  static char settingsResponse[SETTINGS_RESPONSE_LENGTH];
 
   sensor_t * s = esp_camera_sensor_get();
   int8_t txPower;
   esp_wifi_get_max_tx_power(&txPower);
 
-  snprintf( &(settingsResponse[0]),  5, "%i\n",MAG_ALARM_DELTA_THRESHOLD);
-  snprintf( &(settingsResponse[5]),  5, "%i\n",s->status.quality);
-  snprintf( &(settingsResponse[10]), 5, "%i\n",s->status.framesize);
-  snprintf( &(settingsResponse[15]), 5, "%i\n",txPower);
+  snprintf( &(settingsResponse[0]),  5, "%i\n", MAG_ALARM_DELTA_THRESHOLD);
+  snprintf( &(settingsResponse[5]),  5, "%i\n", s->status.quality);
+  snprintf( &(settingsResponse[10]), 5, "%i\n", s->status.framesize);
+  snprintf( &(settingsResponse[15]), 5, "%i\n", txPower);
+
+  preferences.begin("storedVals", true);
+    snprintf( &(settingsResponse[20]), 32, "%s\n", preferences.getString("svrUrl").c_str() );
+    uint8_t storedNetworksSettingsStrStart = 52;
+    numStoredNetworks = preferences.getUChar("numStoredNetworks");
+    for( uint8_t i = 0; i < numStoredNetworks; ++i ){
+      snprintf(storedPrefKey, 8, "net%i", i );
+      snprintf( &(settingsResponse[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2)*i]),
+          NETWORK_NAME_LEN, "%s\n", preferences.getString(storedPrefKey).c_str() );
+      snprintf(storedPrefKey, 8, "pass%i", i );
+      snprintf( &(settingsResponse[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2)*i]),
+          NETWORK_NAME_LEN, "%s\n", preferences.getString(storedPrefKey).c_str() );
+    }
+  preferences.end();
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, settingsResponse, SETTINGS_RESPONSE_LENGTH);
@@ -432,6 +495,40 @@ static esp_err_t stream_handler(httpd_req_t *req){
   return res;
 }
 
+
+camera_fb_t * fb;
+uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
+  //after done with result need to free allocated memory
+  //if returns 1 call "esp_camera_fb_return( fb )" 
+  //if returns 2 call  "free( _jpg_buf )"
+  fb = esp_camera_fb_get();
+  esp_err_t res = ESP_OK;
+  if (!fb) {
+    Serial.println("Cam fb get failed");
+    return 0;
+  } else {
+    if(fb->width > 200){ //400
+      if(fb->format != PIXFORMAT_JPEG){
+        bool jpeg_converted = frame2jpg(fb, 80, _jpg_buf, _jpg_buf_len);
+        esp_camera_fb_return(fb);
+        fb = NULL;
+        if(!jpeg_converted){
+          Serial.println("JPEG compres failed");
+          return 0;
+        }else{
+          return 2;
+        }
+      } else {
+        _jpg_buf_len[0] = fb->len;
+        _jpg_buf[0] = fb->buf;
+        return 1;
+      }
+    }
+    return 1;
+  }
+}
+
+/*
 static esp_err_t jpg_handler(httpd_req_t *req){
   camera_fb_t * fb = NULL;
   esp_err_t res = ESP_OK;
@@ -444,38 +541,147 @@ static esp_err_t jpg_handler(httpd_req_t *req){
     return res;
   }
 
-  fb = esp_camera_fb_get();
-  if (!fb) {
-    Serial.println("Camera capture failed");
-    res = ESP_FAIL;
-  } else {
-    if(fb->width > 200){ //400
-      if(fb->format != PIXFORMAT_JPEG){
-        bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len);
-        esp_camera_fb_return(fb);
-        fb = NULL;
-        if(!jpeg_converted){
-          Serial.println("JPEG compression failed");
-          res = ESP_FAIL;
-        }
-      } else {
-        _jpg_buf_len = fb->len;
-        _jpg_buf = fb->buf;
-      }
-    }
+  if( getJpeg( &_jpg_buf, &_jpg_buf_len) == ESP_OK ){
+    res = httpd_resp_send(req, (const char *)_jpg_buf, _jpg_buf_len);
+    free(_jpg_buf);
+  }
+  return res;
+}
+*/
+
+
+bool doCommand( char * variable, char * value ){
+
+  bool sucessfulyHandledCmd = true;
+
+  //for camera setting changes
+  sensor_t * s = esp_camera_sensor_get();
+
+  if(!strncmp(variable, "camFlipVertical", 15)) { //flip the camera vertically
+      s->set_vflip(s, atoi(value));          // 0 = disable , 1 = enable
+  }
+  else if(!strncmp(variable, "camFlipHoriz", 12)) { //flip the camera horizontally
+      s->set_hmirror(s, atoi(value));          // 0 = disable , 1 = enable
+  }
+  else if(!strncmp(variable, "camResolution", 13)){
+    if( !strncmp(value, "QVGA", 4) )
+      s->set_framesize(s, FRAMESIZE_QVGA );
+    else if( !strncmp(value, "CIF", 3) )
+      s->set_framesize(s, FRAMESIZE_CIF );
+    else if( !strncmp(value, "VGA", 3) )
+      s->set_framesize(s, FRAMESIZE_VGA );
+    else if( !strncmp(value, "SVGA", 4) )
+      s->set_framesize(s, FRAMESIZE_SVGA );
   }
 
-  return httpd_resp_send(req, (const char *)_jpg_buf, _jpg_buf_len);
+  else if(!strncmp(variable, "camQuality", 10)){
+      s->set_quality(s, atoi(value));
+  }
+
+  //config.frame_size = FRAMESIZE_QVGA;
+  //config.jpeg_quality = 63;
+
+  //servo position control
+  else if(!strncmp(variable, "up", 2)) {
+    if(servo1Angle <= 170) {
+      servo1Angle += 10;
+      servo1.write(servo1Angle);
+    }
+    Serial.println(servo1Angle);
+    Serial.println("Up");
+  }
+  else if(!strncmp(variable, "left", 4)) {
+    if(servo2Angle <= 170) {
+      servo2Angle += 10;
+      servo2.write(servo2Angle);
+    }
+    Serial.println(servo2Angle);
+    Serial.println("Left");
+  }
+  else if(!strncmp(variable, "right", 5)) {
+    if(servo2Angle >= 10) {
+      servo2Angle -= 10;
+      servo2.write(servo2Angle);
+    }
+    Serial.println(servo2Angle);
+    Serial.println("Right");
+  }
+  else if(!strncmp(variable, "down", 4)) {
+    if(servo1Angle >= 10) {
+      servo1Angle -= 10;
+      servo1.write(servo1Angle);
+    }
+    Serial.println(servo1Angle);
+    Serial.println("Down");
+  }
+  else if(!strncmp(variable, "center", 6)) {
+    servo1Angle = 90;
+    servo2Angle = 90;
+    servo1.write(servo1Angle);
+    servo2.write(servo2Angle);
+    
+    Serial.print(servo1Angle);
+    Serial.println(servo2Angle);
+    Serial.println("center");
+  }
+  else if(!strncmp(variable, "Light", 5)){
+    lightLedValue = !lightLedValue;
+    digitalWrite(LightLEDPin, lightLedValue);
+    Serial.print("Light");
+    Serial.println(lightLedValue);
+  }
+  else if(!strncmp(variable, "ArmAlarm", 8)){
+    ArmAlarm(true);
+    Serial.println("ArmAlarm");
+  }
+  else if(!strncmp(variable, "DisarmAlarm", 11)){
+    ArmAlarm(false);
+    Serial.println("DisarmAlarm");
+  }
+  else if(!strncmp(variable, "magAlarmThreshold", 17)){
+      MAG_ALARM_DELTA_THRESHOLD = atoi(value);
+  }
+  else if(!strncmp(variable, "txPower", 7)){
+      MAG_ALARM_DELTA_THRESHOLD = atoi(value);
+  }
+  else if(!strncmp(variable, "svrUrl", 6)){
+    preferences.begin("storedVals", false);
+    preferences.putString("svrUrl", String(value) );
+    Serial.print(" storing serverUrl "); Serial.println( String(value) );
+    preferences.end();
+  }
+  else if(!strncmp(variable, "ssidPass", 8)){
+    preferences.begin("storedVals", false);
+
+    numStoredNetworks = preferences.getUChar ("numStoredNetworks");
+    if( numStoredNetworks > MAX_STORED_NETWORKS )
+      numStoredNetworks = 0;
+    
+    char cStrToStore[32];
+    sprintf( storedPrefKey, "net%i", numStoredNetworks );
+    strlcpy( cStrToStore, value, NETWORK_NAME_LEN );
+    preferences.putString( storedPrefKey, String(cStrToStore) );
+    Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
+    sprintf( storedPrefKey, "pass%i", numStoredNetworks++ );
+    strlcpy( cStrToStore, &(value[32]), NETWORK_NAME_LEN );
+    preferences.putString( storedPrefKey, String(cStrToStore) );
+    Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
+    
+    preferences.end();
+  }
+  else {
+    sucessfulyHandledCmd = -1;
+  }
+
+  return sucessfulyHandledCmd;
 }
 
-static esp_err_t cmd_handler(httpd_req_t *req){
+static esp_err_t cmd_handler( httpd_req_t *req ){
   char*  buf;
   size_t buf_len;
   char variable[32] = {0,};
-  char value[32] = {0,};
+  char value[64] = {0,};
 
-  int sucessfulyHandledACmd = 0;
-  
   buf_len = httpd_req_get_url_query_len(req) + 1;
   if (buf_len > 1) {
     buf = (char*)malloc(buf_len);
@@ -483,8 +689,10 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       httpd_resp_send_500(req);
       return ESP_FAIL;
     }
-    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-      if (httpd_query_key_value(buf, "go", variable, sizeof(variable)) == ESP_OK) {
+    
+    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) { //get the part of url after ?
+      if (httpd_query_key_value(buf, "go", variable, sizeof(variable)) == ESP_OK) { //get go= value
+        httpd_query_key_value(buf, "val", value, sizeof(value));
       } else {
         free(buf);
         httpd_resp_send_404(req);
@@ -501,113 +709,100 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     return ESP_FAIL;
   }
 
-  //camera setting changes
-  sensor_t * s = esp_camera_sensor_get();
-
-  if(!strcmp(variable, "camFlipVertical")) { //flip the camera vertically
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK )
-      s->set_vflip(s, atoi(value));          // 0 = disable , 1 = enable
-  }
-  else if(!strcmp(variable, "camFlipHoriz")) { //flip the camera horizontally
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK )
-      s->set_hmirror(s, atoi(value));          // 0 = disable , 1 = enable
-  }
-  else if(!strcmp(variable, "camResolution")){
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK){
-      if( !strcmp(value, "QVGA") )
-        s->set_framesize(s, FRAMESIZE_QVGA );
-      else if( !strcmp(value, "CIF") )
-        s->set_framesize(s, FRAMESIZE_CIF );
-      else if( !strcmp(value, "VGA") )
-        s->set_framesize(s, FRAMESIZE_VGA );
-      else if( !strcmp(value, "SVGA") )
-        s->set_framesize(s, FRAMESIZE_SVGA );
-    }
-  }
-
-  else if(!strcmp(variable, "camQuality")){
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK)
-      s->set_quality(s, atoi(value));
-  }
-
-  //config.frame_size = FRAMESIZE_QVGA;
-  //config.jpeg_quality = 63;
-
-  //servo position control
-  else if(!strcmp(variable, "up")) {
-    if(servo1Angle <= 170) {
-      servo1Angle += 10;
-      servo1.write(servo1Angle);
-    }
-    Serial.println(servo1Angle);
-    Serial.println("Up");
-  }
-  else if(!strcmp(variable, "left")) {
-    if(servo2Angle <= 170) {
-      servo2Angle += 10;
-      servo2.write(servo2Angle);
-    }
-    Serial.println(servo2Angle);
-    Serial.println("Left");
-  }
-  else if(!strcmp(variable, "right")) {
-    if(servo2Angle >= 10) {
-      servo2Angle -= 10;
-      servo2.write(servo2Angle);
-    }
-    Serial.println(servo2Angle);
-    Serial.println("Right");
-  }
-  else if(!strcmp(variable, "down")) {
-    if(servo1Angle >= 10) {
-      servo1Angle -= 10;
-      servo1.write(servo1Angle);
-    }
-    Serial.println(servo1Angle);
-    Serial.println("Down");
-  }
-  else if(!strcmp(variable, "center")) {
-    servo1Angle = 90;
-    servo2Angle = 90;
-    servo1.write(servo1Angle);
-    servo2.write(servo2Angle);
-    
-    Serial.print(servo1Angle);
-    Serial.println(servo2Angle);
-    Serial.println("center");
-  }
-  else if(!strcmp(variable, "Light")){
-    lightLedValue = !lightLedValue;
-    digitalWrite(LightLEDPin, lightLedValue);
-    Serial.print("Light");
-    Serial.println(lightLedValue);
-  }
-  else if(!strcmp(variable, "ArmAlarm")){
-    ArmAlarm(true);
-    Serial.println("ArmAlarm");
-  }
-  else if(!strcmp(variable, "DisarmAlarm")){
-    ArmAlarm(false);
-    Serial.println("DisarmAlarm");
-  }
-  else if(!strcmp(variable, "magAlarmThreshold")){
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK)
-      MAG_ALARM_DELTA_THRESHOLD = atoi(value);
-  }
-  else if(!strcmp(variable, "txPower")){
-    if( httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK)
-      MAG_ALARM_DELTA_THRESHOLD = atoi(value);
-  }
-  else {
-    sucessfulyHandledACmd = -1;
-  }
-
-  if(sucessfulyHandledACmd){
-    return httpd_resp_send_500(req);
-  }
-  //else did not understand or was able to handle the requested cmd
+  if( !doCommand( variable, value ) )
+    return httpd_resp_send_500(req); //did not understand or was able to handle the requested cmd
+  
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   return httpd_resp_send(req, NULL, 0);
+
+}
+
+//one loop is 1/10th of a second ( from delay(100); in wifiCamCarSecuritySystem.ino )
+#define INACTIVE_COMMAND_LOOP_INTERVAL 10
+#define NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND 100
+int activelyCommanded = 0;
+HTTPClient cloudHttp;
+String serverUrl;
+typedef enum{
+  STATUS   = 0,
+  SETTINGS = 1,
+  IMAGE    = 2
+} PostType;
+void PostAndFetchDataFromCloudServer(PostType postType){
+  
+  if( postType == PostType.STATUS )
+    --activelyCommanded;
+
+  if( activelyCommanded <= 0 ){ //if it's been NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND
+    if( activelyCommanded < -INACTIVE_COMMAND_LOOP_INTERVAL )
+      activelyCommanded = 0; //only send after interval num loops
+    else
+      return; //skip sending for INACTIVE_COMMAND_LOOP_INTERVAL loops
+  }
+
+  if( !cloudHttp.connected() ){
+    preferences.begin("storedVals", true);
+    serverUrl = preferences.getString("svrUrl");
+    preferences.end();
+    Serial.print( "Con to " );
+    Serial.println( serverUrl );
+    cloudHttp.setReuse(true);
+    cloudHttp.begin(serverUrl);
+  }
+
+  int httpResponseCode;
+  if( postType == PostType.STATUS ){
+    fillStatusString();
+    cloudHttp.addHeader("Content-Type", "text/plain", true, true);
+    char lenStr[8];
+    snprintf( lenStr, 8, "%i", CSI_INF_STR_LEN );
+    cloudHttp.addHeader("Content-Length", lenStr, false, true);
+    httpResponseCode = cloudHttp.POST( (uint8_t *)&(lastCsiInfoStr[0]),  CSI_INF_STR_LEN );
+  }else if( postType == PostType.IMAGE ){
+    fillSettingsString();
+  }else if( postType == PostType.IMAGE ){
+    cloudHttp.addHeader("Content-Type", "image/jpeg", true, true);
+    size_t _jpg_buf_len = 0;
+    uint8_t * _jpg_buf = NULL;
+    uint8_t jpgBufType = getJpeg( &_jpg_buf, &_jpg_buf_len);
+    if( jpgBufType != 0 ){
+      char lenStr[8];
+      snprintf( lenStr, 8, "%i", _jpg_buf_len );
+      cloudHttp.addHeader("Content-Length", lenStr, false, true);
+      Serial.print("send img "); Serial.println( _jpg_buf_len );
+      httpResponseCode = cloudHttp.POST(_jpg_buf, _jpg_buf_len);
+      if( jpgBufType == 2 )
+        free(_jpg_buf);
+      else
+        esp_camera_fb_return(fb);
+    }
+  }
+  
+  if( httpResponseCode > 0  && !sendImage ){
+    String response = cloudHttp.getString();  //Get the response to the request
+    Serial.println(httpResponseCode);   //Print return code
+    Serial.println(response);           //Print request answer
+    //check the response for pending commands
+    if ( response.length() > 0 ){
+      uint8_t numCmds = response[0] - '0';
+      if( numCmds > 0 ){ // a command was recieved
+        activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+        //do all recieved commands
+        char cmd[32];
+        char val[32];
+        for( uint8_t i = 0; i < numCmds; ++i ){
+          snprintf( cmd, 32, "%s", &(response[1+i*64]) );
+          snprintf( val, 32, "%s", &(response[1+i*64+32]) );
+          doCommand( cmd, val );
+        }
+      }
+    }
+  }
+
+  Serial.print("POST resp: ");
+  Serial.println(httpResponseCode);
+
+  //cloudHttp.end(); 
 }
 
 void startCameraServer(){

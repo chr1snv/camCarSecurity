@@ -38,7 +38,7 @@ static void wifi_init()
 }
 */
 
-#define CSI_INF_STR_LEN 1024
+#define CSI_INF_STR_LEN 256
 #define INF_STR_EXTRA_DATA_LEN 50
 #define CSI_INF_PRINT_LEN CSI_INF_STR_LEN-INF_STR_EXTRA_DATA_LEN
 static char lastCsiInfoStr[CSI_INF_STR_LEN];

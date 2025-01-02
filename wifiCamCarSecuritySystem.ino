@@ -26,8 +26,9 @@
 #include "soc/soc.h"             // disable brownout problems
 #include "soc/rtc_cntl_reg.h"    // disable brownout problems
 
+#include <Preferences.h> //for non volitile memory storage
+Preferences preferences;
 
-#define PART_BOUNDARY "123456789000000000000987654321"
 
 #define SERVO_1      12//14
 #define SERVO_2      13//15
@@ -47,7 +48,6 @@ void UpdateAlarmOutput(bool on){
   digitalWrite(ALARM_OUTPUT_PIN, LOW);
 }
 
-#include "esp_http_server.h"
 #include <ESP32Servo.h>
 #include "temperatureSensor.h"
 #include "signalStrengthAndMotionDetection.h"
@@ -119,8 +119,15 @@ void setup() {
   // Start streaming web server
   startCameraServer();
 
-  Serial.print("Camera Stream Ready! Go to: http://");
-  Serial.println(WiFi.softAPIP());//localIP());
+  Serial.println("Local webpage ready! ");
+  Serial.print("Go to: http://");
+  Serial.print( WiFi.softAPIP() );
+  Serial.print( " on ");
+  Serial.println( APssid );
+  Serial.print( " or http://" ); 
+  Serial.print( WiFi.localIP() );
+  Serial.print( " on " );
+  Serial.println( foundNetwork );
 }
 
 #define PRINT_PER_LINE 10
@@ -138,11 +145,17 @@ void loop() {
   }
 
   //read sensors
+  temp_sense();
+  sense_wifi_rssi();
   ori_sense();
+
   //check if alarm conditions met
   if( alarmArmed ){
     mag_checkAlarmTriggered();
   }
+
+  PostAndFetchDataFromCloudServer(true);//send image
+  PostAndFetchDataFromCloudServer(false); //send status
 
   delay(100);
 }

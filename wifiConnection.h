@@ -5,11 +5,6 @@
 #include <cfloat>
 
 
-//network to connect to credentials
-
-#define APchannel 9
-#define APhideSSid 1 //1 hide ssid
-#define APmaxClients 4 //1-4
 
 //wifi_band_t supportedBands;
 
@@ -171,7 +166,12 @@ void wifiChanToMinMaxFreq(uint8_t chan){
   }
 }
 
-#define NUM_WIFI_CHANNEL_BINS 14
+#define NETWORK_NAME_LEN 32
+#define MAX_FOUND_NETWORKS 16
+char foundNetworks[MAX_FOUND_NETWORKS*NETWORK_NAME_LEN];
+uint8_t numFoundNetworks;
+
+#define NUM_WIFI_CHANNEL_BINS        14
 #define HIGHEST_ALLOWED_WIFI_CHANNEL 11
 float channelWattage[NUM_WIFI_CHANNEL_BINS];
 uint8_t wifi_scanNetworks(){ 
@@ -199,6 +199,7 @@ uint8_t wifi_scanNetworks(){
   // WiFi.scanNetworks will return the number of networks found.
   int n = WiFi.scanNetworks(false, true, true); //synchronous, passive, show hidden channels
   Serial.println("Scan done");
+  numFoundNetworks = 0;
   if (n == 0) {
       Serial.println("no networks found");
   } else {
@@ -210,6 +211,8 @@ uint8_t wifi_scanNetworks(){
           Serial.printf("%2d",i + 1);
           Serial.print(" | ");
           Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
+
+          strncpy( &(foundNetworks[NETWORK_NAME_LEN*(numFoundNetworks++)]), WiFi.SSID(i).c_str(), NETWORK_NAME_LEN );
           Serial.print(" | ");
           Serial.printf("%4d", WiFi.RSSI(i));
           Serial.print(" | ");
@@ -248,39 +251,77 @@ uint8_t wifi_scanNetworks(){
         lowestPowerBinIdx = i+1;
       }
     }
-    Serial.print( "lowest wattage channel " ); Serial.print( lowestPowerBinIdx, 20 );
-    Serial.print( " wattage " ); Serial.println( lowestWattage );
+    Serial.print( "lowest wattage channel " ); Serial.print( lowestPowerBinIdx );
+    Serial.print( " wattage " ); Serial.println( lowestWattage, 20 );
 
     // Wait a bit before scanning again.
     //delay(5000);
     return lowestPowerBinIdx;
 }
 
+#define WIFI_CONNECT_MAX_SECONDS_TO_WAIT 7
+#define MAX_STORED_NETWORKS 10
+uint8_t numStoredNetworks = 0;
+uint8_t foundNetworkLen;
+char foundNetwork[NETWORK_NAME_LEN+1];
+char storedPrefKey[8];
 void connectWiFi(){
   WiFi.mode(WIFI_AP_STA);
-  esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B);
-  esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
-  Serial.print("begin wifi ssid "); Serial.print(APssid); Serial.print(" password "); Serial.print(APpassword);
+  //esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B);
+  //esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+  Serial.print("begin wifi ssid "); Serial.print(APssid); Serial.print(" password "); Serial.println(APpassword);
   WiFi.softAP(APssid, APpassword, APchannel, APhideSSid, APmaxClients);
-  //WiFi.begin(ssid, password);
+
+  //check if a network with known credentials is in range (to get internet / cloud connection)
+  
+  preferences.begin("storedVals", false); //false -> read write mode (true read only)
+  if( preferences.isKey("numStoredNetworks") ){
+    numStoredNetworks = preferences.getUChar("numStoredNetworks");
+  }else{
+
+  }
+  preferences.end();
+
+  Serial.println("attempting to join stored network");
+  preferences.begin("storedVals", true);
+  bool joinedNetwork = false;
+  String storedNetwork;
+  String storedPassword;
+  for( uint8_t num = 0; ((num < numStoredNetworks) && (!joinedNetwork)); num++ ){
+    sprintf( storedPrefKey, "net%i", num );
+    Serial.print( "getting pref Key |" ); Serial.println( storedPrefKey );
+    storedNetwork = preferences.getString( storedPrefKey );
+    sprintf( storedPrefKey, "pass%i", num );
+    storedPassword = preferences.getString( storedPrefKey );
+    Serial.println( "stored network |" + storedNetwork + "| storedPassword |" + storedPassword + "|" );
+    for( uint8_t i = 0; ((i < numFoundNetworks) && (!joinedNetwork)); ++i ){
+      foundNetworkLen = strlcpy( foundNetwork, &(foundNetworks[NETWORK_NAME_LEN*i]),  NETWORK_NAME_LEN );
+      Serial.print("found network |"); Serial.print(foundNetwork); Serial.println( "|" );
+      //foundN
+      if( strncmp( &(foundNetwork[0]), storedNetwork.c_str(), NETWORK_NAME_LEN ) == 0 ){
+        Serial.print("JoiningNetwork: "); Serial.println( storedNetwork );
+        WiFi.begin(storedNetwork, storedPassword);
+        uint8_t iterations;
+        while( WiFi.status() != WL_CONNECTED && iterations++ < WIFI_CONNECT_MAX_SECONDS_TO_WAIT ){
+          delay(1000);
+          Serial.print("Connecting to ");Serial.print( storedNetwork ); Serial.print(" wait for "); Serial.print(iterations); Serial.println(" seconds");
+        }
+        if( WiFi.status() == WL_CONNECTED ){
+          Serial.println("Connected");
+          joinedNetwork = true;
+        }else{
+          Serial.println("Failed to connect, trying next");
+        }
+      }
+    }
+  }
+  if( !joinedNetwork )
+     Serial.println("Didn't find network with stored password");
+  preferences.end();
 
   esp_wifi_set_max_tx_power(8); //range is [8, 84] corresponding to 2dBm - 20dBm
   int8_t power;
   esp_wifi_get_max_tx_power(&power);
   Serial.print("Power:");
   Serial.println( power );
-
-  char dotsPerline = 10;
-  while (WiFi.softAPgetStationNum() == 0){//WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    if(--dotsPerline < 1){
-      dotsPerline = 10;
-      Serial.println("");
-    }
-  }
-  digitalWrite(redLEDPin, LOW);
-  Serial.println("");
-  Serial.println("WiFi client connected to this espCam-ap");
-  
 }
