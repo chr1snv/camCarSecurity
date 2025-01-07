@@ -63,13 +63,18 @@
 		</tr>
 	</table>
 	<br/>
-	<table style="border:1px sold;">
-		<tr id=status>System Status</tr>
+	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">>System Status</h2>
+	<table id="statusDisp" style="border:1px sold;">
 		<tr>
-			<th>alarm armed</th><th>magArmX</th><th>magArmY</th><th>magArmZ</th>
+			<th>alarm armed</th>
+			<th>light</th>
+			<th>magArmX</th>
+			<th>magArmY</th>
+			<th>magArmZ</th>
 		</tr>
 		<tr>
 			<td id="alarmArmed"></td>
+			<td id="light"></td>
 			<td id="magArmX"></td>
 			<td id="magArmY"></td>
 			<td id="magArmZ"></td>
@@ -107,68 +112,70 @@
 			<td id="statusPing"></td>
 		</tr>
 	</table>
-	Settings
-	<table>
-		<tr>
-			<th>Mag Threshold</th>
-			<th>Cam Quality</th>
-			<th>Cam Resolution</th>
-			<th>Tx Power</th>
-		</tr>
-		<tr>
-			<td id="magThreshold"></td>
-			<td id="camQuality"></td>
-			<td id="camResolution"></td>
-			<td id="txPower"></td>
-		</tr>
-	</table>
-	<table>
-		<tr><th>Server Url</th><td id="svrUrl"></td></tr>
-		<tr><th>Net0</th><td id="net0"></td><th>Pass0</th><td id="pass0"></td></tr>
-		<tr><th>Net1</th><td id="net1"></td><th>Pass1</th><td id="pass1"></td></tr>
-		<tr><th>Net2</th><td id="net2"></td><th>Pass2</th><td id="pass2"></td></tr>
-		<tr><th>Net3</th><td id="net3"></td><th>Pass3</th><td id="pass3"></td></tr>
-		<tr><th>Net4</th><td id="net4"></td><th>Pass4</th><td id="pass4"></td></tr>
-		<tr><th>Net5</th><td id="net5"></td><th>Pass5</th><td id="pass5"></td></tr>
-		<tr><th>Net6</th><td id="net6"></td><th>Pass6</th><td id="pass6"></td></tr>
-		<tr><th>Net7</th><td id="net7"></td><th>Pass7</th><td id="pass7"></td></tr>
-		<tr><th>Net8</th><td id="net8"></td><th>Pass8</th><td id="pass8"></td></tr>
-		<tr><th>Net9</th><td id="net9"></td><th>Pass9</th><td id="pass9"></td></tr>
-	</table>
-	<table>
-		<tr>
-			<td><input id="magThresholdNum" type="number" min="0" max="500" value="20"></input></td>
-			<td><button onclick="sendMagThreshold();">Set Mag Alarm Threshold</button></td>
-			<td><input id="camQualityNum" type="number" min="0" max="63" value="30"></input></td>
-			<td><button onclick="sendCamQuality();">Set Cam Quality (0-63)</button></td>
-			<td><input id="txPowerNum" type="number" min="8" max="80" value="50" title="[8, 84] -> 2dBm - 20dBm"></input></td>
-			<td><button onclick="sendTxPower();">Set Tx Power (8-80)</button></td>
-		</tr>
-		<tr>
-			<td><button onclick="sendCmd('camFlipVertical', 1);">Vert Flip</button></td>
-			<td><button onclick="sendCmd('camFlipVertical', 0);">Vert No Flip</button></td>
-			<td><button onclick="sendCmd('camFlipHoriz', 1);">Horiz Flip</button></td>
-			<td><button onclick="sendCmd('camFlipHoriz', 0);">Horiz No Flip</button></td>
-			<td><button onclick="camRot90(1);">90deg Rotate</button></td>
-			<td><button onclick="camRot90(0);">No Rotate</button></td>
-		</tr>
-		<tr>
-			<td><button onclick="sendCmd('camResolution', 'QVGA');">QVGA</button></td>
-			<td><button onclick="sendCmd('camResolution', 'CIF');">CIF</button></td>
-			<td><button onclick="sendCmd('camResolution', 'VGA');">VGA</button></td>
-			<td><button onclick="sendCmd('camResolution', 'SVGA');">SVGA</button></td>
-		</tr>
-		<tr>
-			<td><input id="svrUrlVal" type="text"></input></td>
-			<td><button onclick="sendSvrUrl()">Set Cloud Server Url (http(s)://<ip/url>:port)</button></td>
-		</tr>
-		<tr>
-			<td><input id="ssid" type="text"></input></td>
-			<td><input id="pass" type="text"></input></td>
-			<td><button onclick="sendWifi_SSID_Pass()">Add SSID and Password</button></td>
-		</tr>
+	<h2 onclick="toggleDisp(this, 'settingsDisp')" style="cursor: pointer;">> Settings</h2>
+	<div id="settingsDisp" style="display:None;">
+		<table>
+			<tr>
+				<th>Mag Threshold</th>
+				<th>Cam Quality</th>
+				<th>Cam Resolution</th>
+				<th>Tx Power</th>
+			</tr>
+			<tr>
+				<td id="magThreshold"></td>
+				<td id="camQuality"></td>
+				<td id="camResolution"></td>
+				<td id="txPower"></td>
+			</tr>
 		</table>
+		<table id="storedSsidsTable">
+			<tr>
+				<th>Server Url</th>
+				<td><input id="svrUrl" type="text"></input></td>
+				<td><button onClick="sendCmd('setSvr', document.getElementById('svrUrlVal').value );">Set</button></td>
+				<td><button onClick="sendCmd('clearSvr');">Clear</button></td>
+			</tr>
+		</table>
+		<table>
+			<tr>
+				<td><input id="magThresholdNum" type="number" min="0" max="500" value="20"></input></td>
+				<td><button onclick="sendMagThreshold();">Set Mag Alarm Threshold</button></td>
+				<td><input id="camQualityNum" type="number" min="0" max="63" value="30"></input></td>
+				<td><button onclick="sendCamQuality();">Set Cam Quality (0-63)</button></td>
+				<td><input id="txPowerNum" type="number" min="8" max="80" value="50" title="[8, 84] -> 2dBm - 20dBm"></input></td>
+				<td><button onclick="sendTxPower();">Set Tx Power (8-80)</button></td>
+			</tr>
+			<tr>
+				<td><button onclick="sendCmd('camFlipVertical', 1);">Vert Flip</button></td>
+				<td><button onclick="sendCmd('camFlipVertical', 0);">Vert No Flip</button></td>
+				<td><button onclick="sendCmd('camFlipHoriz', 1);">Horiz Flip</button></td>
+				<td><button onclick="sendCmd('camFlipHoriz', 0);">Horiz No Flip</button></td>
+				<td><button onclick="camRot90(1);">90deg Rotate</button></td>
+				<td><button onclick="camRot90(0);">No Rotate</button></td>
+			</tr>
+			<tr>
+				<td><button onclick="sendCmd('camResolution', 'QVGA');">QVGA</button></td>
+				<td><button onclick="sendCmd('camResolution', 'CIF');">CIF</button></td>
+				<td><button onclick="sendCmd('camResolution', 'VGA');">VGA</button></td>
+				<td><button onclick="sendCmd('camResolution', 'SVGA');">SVGA</button></td>
+			</tr>
+			</table>
+		</div>
 		<script>
+		const MAX_STORED_NETWORKS = 10;
+		
+		function toggleDisp(titleElm, elmId){
+			let elm = document.getElementById(elmId);
+			let title = titleElm.textContent.slice(1);
+			if( elm.style.length > 0 ){
+				elm.style = "";
+				titleElm.textContent = "v" + title;
+			}else{
+				elm.style = "display:none;";
+				titleElm.textContent = ">" + title;
+			}
+		}
+		
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
 		function sendCmd(x, val) {
@@ -193,9 +200,6 @@
 		function sendTxPower(){
 			sendCmd("txPower", document.getElementById("txPowerNum").value );
 		}
-		function sendSvrUrl(){
-			sendCmd("svrUrl", document.getElementById("svrUrlVal").value );
-		}
 		function sendWifi_SSID_Pass(){
 			sendCmd("ssidPass", document.getElementById("ssid").value.padEnd(32) + document.getElementById("pass").value.padEnd(32) );
 		}
@@ -211,6 +215,35 @@
 				photoElm.style = "";
 			}
 
+		}
+		
+		function fillStoredSSIDsTable(){
+			let ssidsTable = document.getElementById("storedSsidsTable");
+			/*
+			function nE(n, t, i, c){
+				let e = document.createElement(n);
+				if(t != undefined)
+					e.type = t;
+				if(i != undefined)
+					e.id = i;
+				if(c != undefined)
+					e.onclick=c;
+				return e;
+			}
+			*/
+			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
+				let ssidTr = "\
+				<tr>\
+				<th>Net"+i+"</th>\
+				<td><input id='net"+i+"' type='text'></input></td>\
+				<th>Pass"+i+"</th>\
+				<td><input id='pass"+i+"' type='text'></input></td>\
+				<td><button onClick='sendCmd(\'clearNet"+i+"\');'>Set</button></td>\
+				<td><button onClick='sendCmd(\'clearNet"+i+"\');'>Clear</button></td>\
+				</tr>\
+				";
+				ssidsTable.innerHTML += ssidTr;
+			}
 		}
 
 		//window.onload = document.getElementById("photo").src = window.location.href.slice(0, -1) + ":81/stream";
@@ -231,27 +264,20 @@
 						let a = xhr.responseText;
 						let rL = a.length;
 						if( rL < 10)
-						  return; //avoid printing undefined
+							return; //avoid printing undefined
 
-						let magThreshold  = strFromStrRange(a, 0, 5);
-						let camQuality    = strFromStrRange(a, 5, 5);
-						let camResolution = strFromStrRange(a, 10, 5);
-						let txPower       = strFromStrRange(a, 15, 5);
+						document.getElementById("magThreshold").innerText	= strFromStrRange(a, 0, 5);
+						document.getElementById("camQuality").innerText		= strFromStrRange(a, 5, 5);
+						document.getElementById("camResolution").innerText	= strFromStrRange(a, 10, 5);
+						document.getElementById("txPower").innerText		= strFromStrRange(a, 15, 5);
 
-						let svrUrl        = strFromStrRange(a, 20, 32);
-
-						document.getElementById("magThreshold").innerText  = magThreshold;
-						document.getElementById("camQuality").innerText    = camQuality;
-						document.getElementById("camResolution").innerText = camResolution;
-						document.getElementById("txPower").innerText       = txPower;
-
-						document.getElementById("svrUrl").innerText       = svrUrl;
+						document.getElementById("svrUrl").innerText			= strFromStrRange(a, 20, 32);
 
 						let MAX_STORED_NETWORKS = 10;
 						let NETWORK_NAME_LEN = 32;
 						for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
-							document.getElementById("net"+i).innerText       = strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i, 32);
-							document.getElementById("pass"+i).innerText       = strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i+32, 32);
+							document.getElementById("net"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i, 32);
+							document.getElementById("pass"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i+32, 32);
 						}
 					}
 				}
@@ -265,7 +291,6 @@
 			const timeRequestedStatus = new Date();
 			xhr.onreadystatechange = function(){
 				if(xhr.readyState == 4){
-					//if(xhr.status == 200 || xhr.status == 0){
 					const now = new Date();
 					const diff = now - timeRequestedStatus;
 					document.getElementById("statusPing").innerText = diff;
@@ -278,45 +303,26 @@
 					if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
 						return;
 
-					let alarmArmed = parseInt(strFromStrRange(a, rL-80, 5));
-					let magArmX    = parseInt(strFromStrRange(a, rL-75, 5));
-					let magArmY    = parseInt(strFromStrRange(a, rL-70, 5));
-					let magArmZ    = parseInt(strFromStrRange(a, rL-65, 5));
-					
-					let servo1     = parseInt(strFromStrRange(a, rL-60, 5));
-					let servo2     = parseInt(strFromStrRange(a, rL-55, 5));
+					document.getElementById("alarmArmed").innerText		= parseInt(strFromStrRange(a, rL-80, 3));
+					document.getElementById("light").innerText			= parseInt(strFromStrRange(a, rL-87, 2));
+					document.getElementById("magArmX").innerText		= parseInt(strFromStrRange(a, rL-75, 5));
+					document.getElementById("magArmY").innerText		= parseInt(strFromStrRange(a, rL-70, 5));
+					document.getElementById("magArmZ").innerText		= parseInt(strFromStrRange(a, rL-65, 5));
 
-					let rssi = parseInt(strFromStrRange(a, rL-50, 5));
-					let temp = parseInt(strFromStrRange(a, rL-45, 5));
-					let magX = parseInt(strFromStrRange(a, rL-40, 5));
-					let magY = parseInt(strFromStrRange(a, rL-35, 5));
-					let magZ = parseInt(strFromStrRange(a, rL-30, 5));
+					document.getElementById("servo1").innerText			= parseInt(strFromStrRange(a, rL-60, 5));
+					document.getElementById("servo2").innerText			= parseInt(strFromStrRange(a, rL-55, 5));
 
-					let magHeading   = parseFloat(strFromStrRange(a, rL-25, 5));
-					let magAlarmDiff = parseInt(strFromStrRange(a, rL-15, 5));
-					let magAlarmTrgr = parseInt(strFromStrRange(a, rL-10, 5));
-					let alarmOutput  = parseInt(strFromStrRange(a, rL-5, 5));
+					document.getElementById("rssi").innerText			= parseInt(strFromStrRange(a, rL-50, 5));
+					document.getElementById("temp").innerText			= parseInt(strFromStrRange(a, rL-45, 5));
+					document.getElementById("magX").innerText			= parseInt(strFromStrRange(a, rL-40, 5));
+					document.getElementById("magY").innerText			= parseInt(strFromStrRange(a, rL-35, 5));
+					document.getElementById("magZ").innerText			= parseInt(strFromStrRange(a, rL-30, 5));
 
-					document.getElementById("alarmArmed").innerText = alarmArmed;
-					document.getElementById("magArmX").innerText    = magArmX;
-					document.getElementById("magArmY").innerText    = magArmY;
-					document.getElementById("magArmZ").innerText    = magArmZ;
-
-					document.getElementById("servo1").innerText = servo1;
-					document.getElementById("servo2").innerText = servo2;
-
-					document.getElementById("rssi").innerText = rssi;
-					document.getElementById("temp").innerText = temp;
-					document.getElementById("magX").innerText = magX;
-					document.getElementById("magY").innerText = magY;
-					document.getElementById("magZ").innerText = magZ;
-
-					document.getElementById("magHeading").innerText = magHeading;
-					document.getElementById("magAlarmDiff").innerText = magAlarmDiff;
-					document.getElementById("magAlarmTrgr").innerText = magAlarmTrgr;
-					document.getElementById("alarmOutput").innerText  = alarmOutput;
-					}
-				//}
+					document.getElementById("magHeading").innerText		= parseFloat(strFromStrRange(a, rL-25, 5));
+					document.getElementById("magAlarmDiff").innerText	= parseInt(strFromStrRange(a, rL-15, 5));
+					document.getElementById("magAlarmTrgr").innerText	= parseInt(strFromStrRange(a, rL-10, 5));
+					document.getElementById("alarmOutput").innerText	= parseInt(strFromStrRange(a, rL-5, 5));
+				}
 			}
 			xhr.open("GET", "/status", true);
 			xhr.send();
@@ -349,6 +355,132 @@
 			xhr.open("GET", "/image", true);
 			xhr.send();
 		}
+		
+		
+		let socketInstance = null;
+		let queuedSignalingMessage = null;
+		function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=false){
+
+			if( ( sceneTime - lastNetworkUpdateTime < networkUpdateInterval ) && !nonRateLimitedMessage )
+				return;
+
+			lastNetworkUpdateTime = sceneTime;
+
+			if( socketInstance == null ){
+				queuedSignalingMessage = signalingMessage;
+				socketInstance = new WebSocket(webSocketSvrUrl);
+				
+				socketInstance.onopen = () => {
+					console.log( "socketInstance connection opened");
+					socketInstance.send( queuedSignalingMessage );
+				}
+
+				socketInstance.onerror = (event) => {
+					console.log("socketInstance.onerror " + event);
+					let nAtElm = document.getElementById("networkAuthText");
+					nAtElm.innerHTML = "multiplayer, certificate may need to be accepted - or server error";
+					let nALElm = document.getElementById("networkAuthLink");
+					let urlParts = webSocketSvrUrl.split("://");
+					let url = "https://"+urlParts[1];
+					nALElm.href = url;
+					nALElm.text = url;
+				}
+
+				socketInstance.onclose = (event) => {
+					console.log("socketInstance.onclose code: " + event.code);
+				}
+
+				socketInstance.onmessage = (event) => {
+					let response = event.data;
+					console.log("socketInstance.onmessage " + response);
+					//parts = response.split("action-");
+					responseParts = response.split(" "); //parts[1]
+
+					let networkResponseType = NetworkResponseTypes.undefined;
+						 if( responseParts[0] == 'svr' )
+						networkResponseType = NetworkResponseTypes.svrGameCreated;
+					else if( responseParts[0] == 'clnt' )
+						networkResponseType = NetworkResponseTypes.clientJoinedGame;
+					else if( responseParts[0] == 'gmInf' )
+						networkResponseType = NetworkResponseTypes.gameInfo;
+
+					//cliUpd 37831353 0.611000 -97.082000 -114.366000 1 98.160000 -1.000000
+
+					let i = 1;
+					switch( networkResponseType ){
+						case NetworkResponseTypes.clientJoinedGame:
+							if( responseParts[i] == "joined" ){
+								++i;
+								let serverUid = responseParts[i];
+								if( serverUid != -1 ){
+									sgMode = SailModes.ClntWatingForStart;
+									lastNetworkUpdateTime = sceneTime;
+								}
+							}
+							break;
+						case NetworkResponseTypes.svrGameCreated:
+							if( responseParts[i] == "newGameSvrId" ){
+								++i;
+								networkGame = new NetworkGame();
+								NetworkGame_Parse(networkGame, responseParts, ++i)
+								sgMode = SailModes.SvrWaitingForPlayers;
+								lastNetworkUpdateTime = sceneTime;
+							}
+							break;
+						case NetworkResponseTypes.gameInfo:
+							if( responseParts[1] == "joined" ){
+								if( networkGame == null )
+									networkGame = new NetworkGame();
+								NetworkGame_Parse(networkGame, responseParts, 3);
+							}else if( responseParts[1] == "gameStarted" ){
+								RGTTA_Start(sceneTime);
+								sgMode = SailModes.NetworkGameplay;
+							}else if( responseParts[1] == "cliUpd" ){
+								let updtUid         = responseParts[2];
+								let updtHdg         = responseParts[3];
+								let updtX           = responseParts[4];
+								let updtY           = responseParts[5];
+								let udptNumB        = responseParts[6];
+								let updtDistToNextB = responseParts[7];
+								let updtCompTime    = responseParts[8];
+
+								for( let cliIdx in networkGame.clients ){
+									let cliStatus = networkGame.clients[cliIdx];
+									if( cliStatus.uidVal == updtUid ){
+										cliStatus.hdg                =  updtHdg;
+										cliStatus.boatMapPosition[0] = updtX;
+										cliStatus.boatMapPosition[1] = updtY;
+										cliStatus.numWayps           =  udptNumB;
+										cliStatus.distToNextWayp     = updtDistToNextB;
+										cliStatus.updtCompTime       = updtCompTime;
+										break;
+									}
+								}
+							}else if( responseParts[1] == "cliLeft" ){
+								NetworkGame_Parse(networkGame, responseParts, 3);
+							}
+							break;
+					}
+					
+				}
+			}else{
+				if( socketInstance.readyState == socketInstance.OPEN ){
+					socketInstance.send(signalingMessage);
+				}else{
+					console.log( "socketInstance not readyToSend readyState " + socketInstance.readyState );
+					socketInstance.close();
+					socketInstance = null;
+				}
+			}
+
+
+		}
+		
+		var xhr = new XMLHttpRequest();
+		xhr.timeout = 300;
+		xhr.ontimeout = function(e){ inProgressRequest = false; }
+		xhr.onabort = xhr.ontimeout;
+		xhr.onerror = xhr.ontimeout;
 
 		//variables to wait for response
 		var inProgressRequest = false;
@@ -358,30 +490,28 @@
 		var numStatusRequests = 0;
 		const numStatusRequestsBeforeSettingsRequest = 100;
 		function MainLoop(){
-		  if(!inProgressRequest){
-			var xhr = new XMLHttpRequest();
-			xhr.timeout = 300;
-			xhr.ontimeout = function(e){ inProgressRequest = false; }
-			xhr.onabort = xhr.ontimeout;
-			xhr.onerror = xhr.ontimeout;
-			
-			if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
-				GetSettings(xhr);
+			if(!inProgressRequest){
+				
+				
+				if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
+					GetSettings(xhr);
+				}else{
+					GetStatus(xhr);
+					GetImage();
+				}
+				
+				inProgressRequest = true;
 			}else{
-			  GetStatus(xhr);
-			  GetImage();
+				if( numLoopsInProgress > MaxProgressLoops ){ //done waiting for response
+					numLoopsInProgress = 0;
+					inProgressRequest = false;
+				}
+				numLoopsInProgress += 1;
 			}
-			
-			inProgressRequest = true;
-		  }else{
-			if( numLoopsInProgress > MaxProgressLoops ){ //done waiting for response
-			  numLoopsInProgress = 0;
-			  inProgressRequest = false;
-			}
-			numLoopsInProgress += 1;
-		  }
 		}
 
+		fillStoredSSIDsTable();
+		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
 		setInterval(MainLoop, 100); //100ms (10x a second)
 		camRot90(true);
 		</script>

@@ -113,8 +113,7 @@ void setup() {
   ArmAlarm(false); //set the siren output low
 
   //esp_wifi_init();
-  wifi_scanNetworks();
-  connectWiFi();
+  connectWiFi(wifi_scanNetworks());
   
   // Start streaming web server
   startCameraServer();
@@ -154,8 +153,10 @@ void loop() {
     mag_checkAlarmTriggered();
   }
 
-  PostAndFetchDataFromCloudServer(true);//send image
-  PostAndFetchDataFromCloudServer(false); //send status
+
+  PostAndFetchDataFromCloudServer(IMAGE);  //send image
+  PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
+  //SETTINGS = 1,
 
   delay(100);
 }

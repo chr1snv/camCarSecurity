@@ -7,6 +7,10 @@
 #when a device is actively requested by a client, it increases its polling rate to 30/60 times per second
 #vs when idle or timed out it polls / lets the server know it is operational every 1 or 10 seconds to reduce server load
 
+import asyncio
+from websockets.server import serve
+import pathlib
+
 import http.server
 import threading
 import ssl
@@ -19,6 +23,9 @@ import os
 import numpy as np
 import cv2
 from requests_toolbelt.multipart import decoder
+
+from netifaces import interfaces, ifaddresses, AF_INET
+
 #import json
 
 def get_ssl_context(certfile, keyfile):
@@ -147,7 +154,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 				self.wfile.write(statusStr)
 				return
 			if parts[1] == 'settings':
-				print('get settings')
+				#print('get settings')
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
 				settingsStr = device.postSettings.encode('utf-8')
@@ -228,7 +235,11 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 			self.send_header('Content-Length', 0)
 			self.end_headers()
 			#self.finish()
-		else: #status or settings fixed length string
+		elif self.headers["Content-Type"] == "text/settings":
+			postStr = post_data.decode("utf-8")
+			device.lastSettings =  postStr
+			device.lastSettingsTime = datetime.datetime.now()
+		elif self.headers["Content-Type"] == "text/status": #status or settings fixed length string
 			postStr = post_data.decode("utf-8")
 			#print("post_data " + postStr )
 
@@ -258,23 +269,52 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
 
 #https://stackoverflow.com/questions/50120102/python-http-server-keep-connection-alive
-def start_backend_server(server_address,requestHandler):
-	backend_server = http.server.ThreadingHTTPServer(server_address, requestHandler)
-	context = get_ssl_context("cert.pem", "key.pem")
-	backend_server.socket = context.wrap_socket(backend_server.socket, server_side=True)
-	f = lambda : backend_server.serve_forever()
-	backend_thread = threading.Thread(target=f)
-	backend_thread.daemon=True
-	backend_thread.start()
-	return backend_thread
+#def start_backend_server(server_address,requestHandler):
+#	backend_server = http.server.ThreadingHTTPServer(server_address, requestHandler)
+#	context = get_ssl_context("cert.pem", "key.pem")
+#	backend_server.socket = context.wrap_socket(backend_server.socket, server_side=True)
+#	f = lambda : backend_server.serve_forever()
+#	backend_thread = threading.Thread(target=f)
+#	backend_thread.daemon=True
+#	backend_thread.start()
+#	return backend_thread
+	
+#svrIp = '127.0.0.1'
+#for ifaceName in interfaces():
+#	addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr':'No IP addr'}] )]
+#	if addresses[0] != '127.0.0.1' and addresses[0] != 'No IP addr':
+#		svrIp = addresses[0]
+#	print ('%s: %s' % (ifaceName, ', '.join(addresses)))
 
 
-backend_thread = start_backend_server(server_address, MyHandler)
+#server_address = (svrIp, 5000)
+#print( server_address )
+#backend_thread = start_backend_server(server_address, MyHandler)
 
-time.sleep(9e9)
-#httpd = http.server.ThreadingHTTPServer(server_address, MyHandler)
+#time.sleep(9e9)
 
-#context = get_ssl_context("cert.pem", "key.pem")
-#httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 
-#httpd.serve_forever()
+
+
+async def main():
+	print("starting server")
+	ip = ""
+	port = 9999
+
+	#logging.basicConfig(
+	#    format="%(message)s",
+	#    level=logging.DEBUG,
+	#)
+
+	#ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+	#localhost_pem =  pathlib.Path(__file__).with_name("cert.pem")
+	#print(localhost_pem)
+	#ssl_context.load_cert_chain(localhost_pem)
+	ssl_context = get_ssl_context("cert.pem", "key.pem")
+	
+
+	async with serve(echo, ip, port, ssl=ssl_context):
+		print( "serving at %s port %i" % (ip, port) )
+		await asyncio.get_running_loop().create_future()
+
+asyncio.run(main())
