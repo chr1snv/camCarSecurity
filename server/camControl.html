@@ -35,6 +35,8 @@
 	<body>
 	<h1>ESP32-CAM Car Alarm</h1>
 	<img src="" id="photo" >
+	<h3 id="networkAuthText"></h3>
+	<a id="networkAuthLink"></a>
 	<table>
 		<tr>
 			<td></td>
@@ -282,8 +284,9 @@
 					}
 				}
 			}
-			xhr.open("GET", "/settings", true);
-			xhr.send();
+			sendWebsocketServerMessage("settings");
+			//xhr.open("GET", "/settings", true);
+			//xhr.send();
 		}
 		
 		function GetStatus(xhr){
@@ -324,17 +327,18 @@
 					document.getElementById("alarmOutput").innerText	= parseInt(strFromStrRange(a, rL-5, 5));
 				}
 			}
-			xhr.open("GET", "/status", true);
-			xhr.send();
+			sendWebsocketServerMessage("status");
+			//xhr.open("GET", "/status", true);
+			//xhr.send();
 		}
 		
 		function GetImage(){
-			var xhr = new XMLHttpRequest();
-			xhr.timeout = 300;
-			xhr.responseType = "arraybuffer";
+			//var xhr = new XMLHttpRequest();
+			//xhr.timeout = 300;
+			//xhr.responseType = "arraybuffer";
 			//xhr.ontimeout = function(e){ inProgressRequest = false; }
-			xhr.onabort = xhr.ontimeout;
-			xhr.onerror = xhr.ontimeout;
+			//xhr.onabort = xhr.ontimeout;
+			//xhr.onerror = xhr.ontimeout;
 			xhr.onreadystatechange = function(){
 				if(xhr.readyState == 4){
 					//if(xhr.status == 200 ){//|| xhr.status == 0){
@@ -352,17 +356,37 @@
 					}
 				//}
 			}
-			xhr.open("GET", "/image", true);
-			xhr.send();
+			sendWebsocketServerMessage("image");
+			//xhr.open("GET", "/image", true);
+			//xhr.send();
 		}
 		
 		
+		const NetworkResponseTypes = {
+			status		: 0,
+			settings	: 1,
+			image 		: 2
+		};
+		function IntToNetworkResponse(i){
+			if( i == '0' )
+				networkResponseType = NetworkResponseTypes.status;
+			else if( i == '1' )
+				networkResponseType = NetworkResponseTypes.settings;
+			else if( i == '2' )
+				networkResponseType = NetworkResponseTypes.image;
+		}
+		
+		
+		let lastNetworkUpdateTime = 0
+		const networkUpdateInterval = 1000;
+		let webSocketSvrUrlParts = document.URL.split(":");
+		const webSocketSvrUrl = webSocketSvrUrlParts[0] + ":" + webSocketSvrUrlParts[1] + ":" + "9999"
 		let socketInstance = null;
 		let queuedSignalingMessage = null;
 		function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=false){
 
-			if( ( sceneTime - lastNetworkUpdateTime < networkUpdateInterval ) && !nonRateLimitedMessage )
-				return;
+			//if( ( sceneTime - lastNetworkUpdateTime < networkUpdateInterval ) && !nonRateLimitedMessage )
+			//	return;
 
 			lastNetworkUpdateTime = sceneTime;
 
@@ -378,12 +402,12 @@
 				socketInstance.onerror = (event) => {
 					console.log("socketInstance.onerror " + event);
 					let nAtElm = document.getElementById("networkAuthText");
-					nAtElm.innerHTML = "multiplayer, certificate may need to be accepted - or server error";
+					nAtElm.innerHTML = "websocket, certificate may need to be accepted - or server error";
 					let nALElm = document.getElementById("networkAuthLink");
 					let urlParts = webSocketSvrUrl.split("://");
 					let url = "https://"+urlParts[1];
 					nALElm.href = url;
-					nALElm.text = url;
+					nALElm.innerText = url;
 				}
 
 				socketInstance.onclose = (event) => {
@@ -392,19 +416,13 @@
 
 				socketInstance.onmessage = (event) => {
 					let response = event.data;
+					if( response.size <= 0 )
+						return;
 					console.log("socketInstance.onmessage " + response);
 					//parts = response.split("action-");
 					responseParts = response.split(" "); //parts[1]
 
-					let networkResponseType = NetworkResponseTypes.undefined;
-						 if( responseParts[0] == 'svr' )
-						networkResponseType = NetworkResponseTypes.svrGameCreated;
-					else if( responseParts[0] == 'clnt' )
-						networkResponseType = NetworkResponseTypes.clientJoinedGame;
-					else if( responseParts[0] == 'gmInf' )
-						networkResponseType = NetworkResponseTypes.gameInfo;
-
-					//cliUpd 37831353 0.611000 -97.082000 -114.366000 1 98.160000 -1.000000
+					let networkResponseType = IntToNetworkResponse(response[0]);
 
 					let i = 1;
 					switch( networkResponseType ){
@@ -468,8 +486,10 @@
 					socketInstance.send(signalingMessage);
 				}else{
 					console.log( "socketInstance not readyToSend readyState " + socketInstance.readyState );
-					socketInstance.close();
-					socketInstance = null;
+					if( socketInstance.readyState > 1 ){
+						socketInstance.close();
+						socketInstance = null;
+					}
 				}
 			}
 
@@ -481,6 +501,8 @@
 		xhr.ontimeout = function(e){ inProgressRequest = false; }
 		xhr.onabort = xhr.ontimeout;
 		xhr.onerror = xhr.ontimeout;
+		
+		var sceneTime = Date.now()
 
 		//variables to wait for response
 		var inProgressRequest = false;
@@ -490,6 +512,7 @@
 		var numStatusRequests = 0;
 		const numStatusRequestsBeforeSettingsRequest = 100;
 		function MainLoop(){
+			sceneTime = Date.now()
 			if(!inProgressRequest){
 				
 				
@@ -509,11 +532,15 @@
 				numLoopsInProgress += 1;
 			}
 		}
+		
+		sendWebsocketServerMessage("hi testing connection from browser to server");
 
 		fillStoredSSIDsTable();
 		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
 		setInterval(MainLoop, 100); //100ms (10x a second)
 		camRot90(true);
+		
+		
 		</script>
 	</body>
 </html>

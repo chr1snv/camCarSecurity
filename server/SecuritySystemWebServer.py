@@ -119,8 +119,18 @@ cmds = []
 def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
 	rqh.send_header("keep-alive", "timeout=5, max=30")
+	
+async def websocketHandler(websocket):
+	async for message in websocket:
+		print("rcvd msg: %s" % (message))
+		if message == 'status':
+			await websocket.send( device.postStatus )
+		if message == 'settings':
+			await websocket.send( device.postSettings )
+		if message == 'image':
+			await websocket.send( device.lastImage )
 
-class MyHandler(http.server.SimpleHTTPRequestHandler):
+class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 	def __init__(self, request, client_address, server):
 		#enable http 1.1 to avoid tls and tcp setup time per request by 
 		self.protocol_version = 'HTTP/1.1' #keeping connections open until calling self.finish()
@@ -266,55 +276,86 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 		return
 
 
+svrIp = '127.0.0.1'
+def getIp():
+	currentIp = '127.0.0.1'
+	for ifaceName in interfaces():
+		addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr':'No IP addr'}] )]
+		if addresses[0] != '127.0.0.1' and addresses[0] != 'No IP addr':
+			currentIp = addresses[0]
+		#print ('%s: %s' % (ifaceName, ', '.join(addresses)))
+	return currentIp
 
+############
+#concurrent / threaded http server for serving the html page
+############
 
 #https://stackoverflow.com/questions/50120102/python-http-server-keep-connection-alive
-#def start_backend_server(server_address,requestHandler):
-#	backend_server = http.server.ThreadingHTTPServer(server_address, requestHandler)
-#	context = get_ssl_context("cert.pem", "key.pem")
-#	backend_server.socket = context.wrap_socket(backend_server.socket, server_side=True)
-#	f = lambda : backend_server.serve_forever()
-#	backend_thread = threading.Thread(target=f)
-#	backend_thread.daemon=True
-#	backend_thread.start()
-#	return backend_thread
-	
-#svrIp = '127.0.0.1'
-#for ifaceName in interfaces():
-#	addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr':'No IP addr'}] )]
-#	if addresses[0] != '127.0.0.1' and addresses[0] != 'No IP addr':
-#		svrIp = addresses[0]
-#	print ('%s: %s' % (ifaceName, ', '.join(addresses)))
+def start_http_server_in_new_thread(server_address,requestHandler):
+	backend_server = http.server.ThreadingHTTPServer(server_address, requestHandler)
+	context = get_ssl_context("cert.pem", "key.pem")
+	backend_server.socket = context.wrap_socket(backend_server.socket, server_side=True)
+	f = lambda : backend_server.serve_forever()
+	backend_thread = threading.Thread(target=f)
+	backend_thread.daemon=True
+	backend_thread.start()
+	return backend_thread
 
+svrIp = getIp()
+server_address = (svrIp, 5000)
+print( "starting httpAsyncServer at " + server_address[0] + " port " + str(server_address[1]) )
+backend_thread = start_http_server_in_new_thread(server_address, HTTPAsyncHandler)
 
-#server_address = (svrIp, 5000)
-#print( server_address )
-#backend_thread = start_backend_server(server_address, MyHandler)
+stop = 0
 
-#time.sleep(9e9)
-
-
-
-
-async def main():
-	print("starting server")
-	ip = ""
+########
+###asyncio websocket server (concurrent event loops)
+########
+async def startWebsocketServer():
+	global stop
+	print("start websocket server init")
 	port = 9999
-
-	#logging.basicConfig(
-	#    format="%(message)s",
-	#    level=logging.DEBUG,
-	#)
-
-	#ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-	#localhost_pem =  pathlib.Path(__file__).with_name("cert.pem")
-	#print(localhost_pem)
-	#ssl_context.load_cert_chain(localhost_pem)
 	ssl_context = get_ssl_context("cert.pem", "key.pem")
 	
+	stop = asyncio.Future()
+	
+	print( "serving websocket at %s port %i" % (svrIp, port) )
+	#https://stackoverflow.com/questions/67810506/websockets-exceptions-connectionclosederror-code-1011-unexpected-error-no
+	async with serve(websocketHandler, svrIp, port, ping_interval=None, ssl=ssl_context) as ws:
+		print('ws before await stop')
+		await stop
+		ws.close()
+		print('ws close called')
+#loop.call_soon_threadsafe(loop.stop)
 
-	async with serve(echo, ip, port, ssl=ssl_context):
-		print( "serving at %s port %i" % (ip, port) )
-		await asyncio.get_running_loop().create_future()
+svrIp = ''
+webSocketSvr = 0
 
-asyncio.run(main())
+####concurrent / thread for checking if interfaces / ip addresses have changed
+def loopCheckIpHasChanged():
+	global svrIp
+	webSocketSvrThread = 0
+	while(1):
+		currentIp = getIp()
+		print(currentIp)
+		if currentIp != svrIp:
+			print('ip has changed, need to rebind servers to new interface addresses')
+			svrIp = currentIp
+			if stop != 0: #https://stackoverflow.com/questions/60113143/how-to-properly-use-asyncio-run-coroutine-threadsafe-function
+				stop.get_loop().call_soon_threadsafe(stop.set_result, 1)
+				#webSocketSvrThread.stop()#stop.set_result(1);
+			loop = asyncio.new_event_loop()
+			asyncio.set_event_loop(loop)
+			loop = asyncio.get_event_loop()
+			print('before run coroutine startWebsocketServer')
+			f = lambda : asyncio.run(startWebsocketServer())#, loop)
+			webSocketSvrThread = threading.Thread(target=f)
+			webSocketSvrThread.daemon=True
+			webSocketSvrThread.start()
+		time.sleep(1)
+
+#run the ip change checking loop (main program loop)
+f = lambda : loopCheckIpHasChanged()
+ipCheck_thread = threading.Thread(target=f)
+#ipCheck_thread.daemon=True
+ipCheck_thread.start()

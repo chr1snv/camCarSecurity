@@ -119,14 +119,17 @@ void setup() {
   startCameraServer();
 
   Serial.println("Local webpage ready! ");
-  Serial.print("Go to: http://");
-  Serial.print( WiFi.softAPIP() );
-  Serial.print( " on ");
-  Serial.println( APssid );
-  Serial.print( " or http://" ); 
-  Serial.print( WiFi.localIP() );
-  Serial.print( " on " );
-  Serial.println( foundNetwork );
+  if( APssid[0] != 0){ //if local ap mode (couldn't find network)
+    Serial.print("http://");
+    Serial.print( WiFi.softAPIP() );
+    Serial.print( " on ");
+    Serial.println( APssid );
+  }else{ //if joined wifi network as client station
+    Serial.print( "http://" );
+    Serial.print( WiFi.localIP() );
+    Serial.print( " on " );
+    Serial.println( foundNetwork );
+  }
 }
 
 #define PRINT_PER_LINE 10
