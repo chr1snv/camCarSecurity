@@ -120,15 +120,25 @@ def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
 	rqh.send_header("keep-alive", "timeout=5, max=30")
 	
+#status		: 0,
+#settings	: 1,
+#image 		: 2
 async def websocketHandler(websocket):
 	async for message in websocket:
-		print("rcvd msg: %s" % (message))
-		if message == 'status':
-			await websocket.send( device.postStatus )
-		if message == 'settings':
-			await websocket.send( device.postSettings )
-		if message == 'image':
+		#print("rcvd msg: %s" % (message))
+		if message == 'action':
+			cmd = parts[3]
+			print( 'action: ' + cmd )
+			val = parts[5]
+			cmds.append( [cmd, val] )
+		elif message == 'status':
+			await websocket.send( '0' + device.postStatus )
+		elif message == 'settings':
+			await websocket.send( '1' + device.postSettings )
+		elif message == 'image':
+			#print(device.lastImage)
 			await websocket.send( device.lastImage )
+
 
 class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 	def __init__(self, request, client_address, server):
@@ -337,7 +347,7 @@ def loopCheckIpHasChanged():
 	webSocketSvrThread = 0
 	while(1):
 		currentIp = getIp()
-		print(currentIp)
+		#print(currentIp)
 		if currentIp != svrIp:
 			print('ip has changed, need to rebind servers to new interface addresses')
 			svrIp = currentIp

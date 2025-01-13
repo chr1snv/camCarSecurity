@@ -221,18 +221,7 @@
 		
 		function fillStoredSSIDsTable(){
 			let ssidsTable = document.getElementById("storedSsidsTable");
-			/*
-			function nE(n, t, i, c){
-				let e = document.createElement(n);
-				if(t != undefined)
-					e.type = t;
-				if(i != undefined)
-					e.id = i;
-				if(c != undefined)
-					e.onclick=c;
-				return e;
-			}
-			*/
+
 			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
 				let ssidTr = "\
 				<tr>\
@@ -345,11 +334,11 @@
 						if ( xhr.response.byteLength < 1 )
 							return;
 						//https://gist.github.com/candycode/f18ae1767b2b0aba568e
-						var arrayBufferView = new Uint8Array( xhr.response );
-						var blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
-						var urlCreator = window.URL || window.webkitURL;
-						var imageUrl = urlCreator.createObjectURL( blob );
-						var img = document.querySelector( "#photo" );
+						let arrayBufferView = new Uint8Array( xhr.response );
+						let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
+						let urlCreator = window.URL || window.webkitURL;
+						let imageUrl = urlCreator.createObjectURL( blob );
+						let img = document.querySelector( "#photo" );
 						img.src = imageUrl;//xhr.response;
 						camRot90(rot90);
 						//document.getElementById("photo").src = "data:image/jpeg;base64," + Buffer.from(xhr.response).toString('base64');
@@ -368,16 +357,18 @@
 			image 		: 2
 		};
 		function IntToNetworkResponse(i){
-			if( i == '0' )
-				networkResponseType = NetworkResponseTypes.status;
-			else if( i == '1' )
-				networkResponseType = NetworkResponseTypes.settings;
-			else if( i == '2' )
-				networkResponseType = NetworkResponseTypes.image;
+			switch(i){
+				case '0':
+					return NetworkResponseTypes.status;
+				case '1':
+					return NetworkResponseTypes.settings;
+				case '2':
+					return NetworkResponseTypes.image;
+			}
 		}
 		
 		
-		let lastNetworkUpdateTime = 0
+		let lastNetworkUpdateTime = 0;
 		const networkUpdateInterval = 1000;
 		let webSocketSvrUrlParts = document.URL.split(":");
 		const webSocketSvrUrl = webSocketSvrUrlParts[0] + ":" + webSocketSvrUrlParts[1] + ":" + "9999"
@@ -393,6 +384,7 @@
 			if( socketInstance == null ){
 				queuedSignalingMessage = signalingMessage;
 				socketInstance = new WebSocket(webSocketSvrUrl);
+				socketInstance.binaryType = 'arraybuffer';
 				
 				socketInstance.onopen = () => {
 					console.log( "socketInstance connection opened");
@@ -416,68 +408,35 @@
 
 				socketInstance.onmessage = (event) => {
 					let response = event.data;
-					if( response.size <= 0 )
+					if( (response.byteLength != undefined && response.byteLength <= 0) || 
+						(response.size != undefined && response.size <= 0 ) )
 						return;
-					console.log("socketInstance.onmessage " + response);
-					//parts = response.split("action-");
-					responseParts = response.split(" "); //parts[1]
+					//console.log("socketInstance.onmessage " + response);
 
-					let networkResponseType = IntToNetworkResponse(response[0]);
+					let svrResponseType = 2;
+					let responseStr = ''
+					if( typeof( response ) == 'string' ){
+						svrResponseType = IntToNetworkResponse(response[0]);
+						responseStr = response.slice(1);
+					}
 
 					let i = 1;
-					switch( networkResponseType ){
-						case NetworkResponseTypes.clientJoinedGame:
-							if( responseParts[i] == "joined" ){
-								++i;
-								let serverUid = responseParts[i];
-								if( serverUid != -1 ){
-									sgMode = SailModes.ClntWatingForStart;
-									lastNetworkUpdateTime = sceneTime;
-								}
-							}
+					switch( svrResponseType ){
+						case NetworkResponseTypes.status:
+							
 							break;
-						case NetworkResponseTypes.svrGameCreated:
-							if( responseParts[i] == "newGameSvrId" ){
-								++i;
-								networkGame = new NetworkGame();
-								NetworkGame_Parse(networkGame, responseParts, ++i)
-								sgMode = SailModes.SvrWaitingForPlayers;
-								lastNetworkUpdateTime = sceneTime;
-							}
+						case NetworkResponseTypes.settings:
+							
 							break;
-						case NetworkResponseTypes.gameInfo:
-							if( responseParts[1] == "joined" ){
-								if( networkGame == null )
-									networkGame = new NetworkGame();
-								NetworkGame_Parse(networkGame, responseParts, 3);
-							}else if( responseParts[1] == "gameStarted" ){
-								RGTTA_Start(sceneTime);
-								sgMode = SailModes.NetworkGameplay;
-							}else if( responseParts[1] == "cliUpd" ){
-								let updtUid         = responseParts[2];
-								let updtHdg         = responseParts[3];
-								let updtX           = responseParts[4];
-								let updtY           = responseParts[5];
-								let udptNumB        = responseParts[6];
-								let updtDistToNextB = responseParts[7];
-								let updtCompTime    = responseParts[8];
-
-								for( let cliIdx in networkGame.clients ){
-									let cliStatus = networkGame.clients[cliIdx];
-									if( cliStatus.uidVal == updtUid ){
-										cliStatus.hdg                =  updtHdg;
-										cliStatus.boatMapPosition[0] = updtX;
-										cliStatus.boatMapPosition[1] = updtY;
-										cliStatus.numWayps           =  udptNumB;
-										cliStatus.distToNextWayp     = updtDistToNextB;
-										cliStatus.updtCompTime       = updtCompTime;
-										break;
-									}
-								}
-							}else if( responseParts[1] == "cliLeft" ){
-								NetworkGame_Parse(networkGame, responseParts, 3);
-							}
-							break;
+						case NetworkResponseTypes.image:
+							//https://gist.github.com/candycode/f18ae1767b2b0aba568e
+							let arrayBufferView = new Uint8Array( response );
+							let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
+							let urlCreator = window.URL || window.webkitURL;
+							let imageUrl = urlCreator.createObjectURL( blob );
+							let img = document.querySelector( "#photo" );
+							img.src = imageUrl;//xhr.response;
+							camRot90(rot90);
 					}
 					
 				}
