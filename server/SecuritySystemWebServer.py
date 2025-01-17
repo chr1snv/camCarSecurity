@@ -125,16 +125,17 @@ def setKeepAlive(rqh):
 #image 		: 2
 async def websocketHandler(websocket):
 	async for message in websocket:
-		#print("rcvd msg: %s" % (message))
-		if message == 'action':
-			cmd = parts[3]
-			print( 'action: ' + cmd )
-			val = parts[5]
+		#print("rcvd msg: %s:%i" % (message, len(message)))
+		if message.startswith('1'):
+			cmd = message[1:17]
+			val = message[17:]
+			print( 'action: ' + cmd + ':' + val + "|")
 			cmds.append( [cmd, val] )
 		elif message == 'status':
-			await websocket.send( '0' + device.postStatus )
+			#print( device.postStatus )
+			await websocket.send( '0' + device.postStatus + str(device.lastStatusTime) )
 		elif message == 'settings':
-			await websocket.send( '1' + device.postSettings )
+			await websocket.send( '1' + device.postSettings + str(device.lastSettingsTime) )
 		elif message == 'image':
 			#print(device.lastImage)
 			await websocket.send( device.lastImage )
@@ -219,7 +220,9 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			output.write("h1 {color:blue;}")
 			output.write("h2 {color:red;}")
 			output.write("</style>")
-			output.write("<h2>Device Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
+			output.write("<h2>System Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
+			output.write("<h1>Avaliable devices</h2>")
+			output.write('<a href="camControl.html">Esp32 Pan tilt camera</a>')
 			output.write("</body>")
 			output.write("</html>")
 
@@ -311,11 +314,8 @@ def start_http_server_in_new_thread(server_address,requestHandler):
 	backend_thread.start()
 	return backend_thread
 
-svrIp = getIp()
-server_address = (svrIp, 5000)
-print( "starting httpAsyncServer at " + server_address[0] + " port " + str(server_address[1]) )
-backend_thread = start_http_server_in_new_thread(server_address, HTTPAsyncHandler)
-
+backend_thread = None
+webSocketSvrThread = None
 stop = 0
 
 ########
@@ -336,14 +336,21 @@ async def startWebsocketServer():
 		await stop
 		ws.close()
 		print('ws close called')
-#loop.call_soon_threadsafe(loop.stop)
+
+
+def startWebsocketServer_in_new_thread():
+	f = lambda : asyncio.run(startWebsocketServer())#, loop)
+	wsThread = threading.Thread(target=f)
+	wsThread.daemon=True
+	wsThread.start()
+	return wsThread
+
 
 svrIp = ''
-webSocketSvr = 0
 
 ####concurrent / thread for checking if interfaces / ip addresses have changed
 def loopCheckIpHasChanged():
-	global svrIp
+	global svrIp, backend_thread
 	webSocketSvrThread = 0
 	while(1):
 		currentIp = getIp()
@@ -351,6 +358,14 @@ def loopCheckIpHasChanged():
 		if currentIp != svrIp:
 			print('ip has changed, need to rebind servers to new interface addresses')
 			svrIp = currentIp
+			
+			if backend_thread != None:
+				backend_thread.stop()
+			
+			server_address = (svrIp, 5000)
+			print( "starting httpAsyncServer at " + server_address[0] + " port " + str(server_address[1]) )
+			backend_thread = start_http_server_in_new_thread(server_address, HTTPAsyncHandler)
+			
 			if stop != 0: #https://stackoverflow.com/questions/60113143/how-to-properly-use-asyncio-run-coroutine-threadsafe-function
 				stop.get_loop().call_soon_threadsafe(stop.set_result, 1)
 				#webSocketSvrThread.stop()#stop.set_result(1);
@@ -358,10 +373,9 @@ def loopCheckIpHasChanged():
 			asyncio.set_event_loop(loop)
 			loop = asyncio.get_event_loop()
 			print('before run coroutine startWebsocketServer')
-			f = lambda : asyncio.run(startWebsocketServer())#, loop)
-			webSocketSvrThread = threading.Thread(target=f)
-			webSocketSvrThread.daemon=True
-			webSocketSvrThread.start()
+			
+			webSocketSvrThread = startWebsocketServer_in_new_thread()
+			
 		time.sleep(1)
 
 #run the ip change checking loop (main program loop)

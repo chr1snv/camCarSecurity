@@ -130,13 +130,20 @@
 				<td id="txPower"></td>
 			</tr>
 		</table>
-		<table id="storedSsidsTable">
+		<table>
 			<tr>
 				<th>Server Url</th>
 				<td><input id="svrUrl" type="text"></input></td>
-				<td><button onClick="sendCmd('setSvr', document.getElementById('svrUrlVal').value );">Set</button></td>
-				<td><button onClick="sendCmd('clearSvr');">Clear</button></td>
+				
+				<td><button onClick="sendCmd('svrUrl', document.getElementById('svrUrl').value ); sendCmd('svrCert', document.getElementById('svrCert').value );">Set</button></td>
+				<td><button onClick="sendCmd('setSvr', ''); sendCmd('svrCert', '');">Clear</button></td>
 			</tr>
+			<tr>
+				<th>Server Cert</th>
+				<td><textarea id="svrCert" cols="80" rows="10"></textarea></td>
+			</tr>
+		</table>
+		<table id="storedSsidsTable">
 		</table>
 		<table>
 			<tr>
@@ -181,9 +188,11 @@
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
 		function sendCmd(x, val) {
-			var xhr = new XMLHttpRequest();
-			xhr.open("GET", "/action?go=" + x + "&val=" + val, true);
-			xhr.send();
+			if( val == undefined )
+				val = ''
+			let sendStr = ("1"+x).padEnd(17)+val.padEnd(32);
+			sendWebsocketServerMessage(sendStr);
+			//xhr.send(sendStr);
 			if(x == "ArmAlarm"){
 				document.getElementById("armAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 				document.getElementById("disarmAlarmButton").style.backgroundColor = clickableButtonBgColor;
@@ -229,8 +238,8 @@
 				<td><input id='net"+i+"' type='text'></input></td>\
 				<th>Pass"+i+"</th>\
 				<td><input id='pass"+i+"' type='text'></input></td>\
-				<td><button onClick='sendCmd(\'clearNet"+i+"\');'>Set</button></td>\
-				<td><button onClick='sendCmd(\'clearNet"+i+"\');'>Clear</button></td>\
+				<td><button onClick=\"sendCmd(\'ssid"+i+"\', document.getElementById(\'net"+i+"\').value.padEnd(32) ); sendCmd(\'pass"+i+"\', document.getElementById(\'pass"+i+"\').value.padEnd(32) );\">Set</button></td>\
+				<td><button onClick=\"sendCmd(\'ssid"+i+"\',\'\'); sendCmd(\'pass"+i+"\',\'\');\">Clear</button></td>\
 				</tr>\
 				";
 				ssidsTable.innerHTML += ssidTr;
@@ -241,114 +250,74 @@
 
 		function strFromStrRange(combinedStr, strt, lenDel){
 			let strPart = "";
-			for( let i = strt; i < strt+lenDel; ++i)
-			strPart += combinedStr[i];
+			for( let i = strt; i < strt+lenDel; ++i){
+				let char = combinedStr[i];
+				if( char != '\u0000' )
+				strPart += char;
+			}
 			return strPart;
 		}
 
-		function GetSettings(xhr){
+		function DisplaySettings(txt){
 			numStatusRequests = 0;
-			xhr.responseType = "text";
-			xhr.onreadystatechange = function(){
-				if(xhr.readyState == 4){
-					if(xhr.status == 200 || xhr.status == 0){
-						let a = xhr.responseText;
-						let rL = a.length;
-						if( rL < 10)
-							return; //avoid printing undefined
+		
+			let a = txt;
+			let rL = a.length;
+			if( rL < 10)
+				return; //avoid printing undefined
 
-						document.getElementById("magThreshold").innerText	= strFromStrRange(a, 0, 5);
-						document.getElementById("camQuality").innerText		= strFromStrRange(a, 5, 5);
-						document.getElementById("camResolution").innerText	= strFromStrRange(a, 10, 5);
-						document.getElementById("txPower").innerText		= strFromStrRange(a, 15, 5);
+			document.getElementById("magThreshold").innerText	= strFromStrRange(a, 0, 5);
+			document.getElementById("camQuality").innerText		= strFromStrRange(a, 5, 5);
+			document.getElementById("camResolution").innerText	= strFromStrRange(a, 10, 5);
+			document.getElementById("txPower").innerText		= strFromStrRange(a, 15, 5);
 
-						document.getElementById("svrUrl").innerText			= strFromStrRange(a, 20, 32);
+			document.getElementById("svrUrl").innerText			= strFromStrRange(a, 20, 32);
 
-						let MAX_STORED_NETWORKS = 10;
-						let NETWORK_NAME_LEN = 32;
-						for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
-							document.getElementById("net"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i, 32);
-							document.getElementById("pass"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i+32, 32);
-						}
-					}
-				}
+			let MAX_STORED_NETWORKS = 10;
+			let NETWORK_NAME_LEN = 32;
+			for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
+				document.getElementById("net"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i, 32);
+				document.getElementById("pass"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i+32, 32);
 			}
-			sendWebsocketServerMessage("settings");
-			//xhr.open("GET", "/settings", true);
-			//xhr.send();
+
 		}
 		
-		function GetStatus(xhr){
-			xhr.responseType = "text";
-			const timeRequestedStatus = new Date();
-			xhr.onreadystatechange = function(){
-				if(xhr.readyState == 4){
-					const now = new Date();
-					const diff = now - timeRequestedStatus;
-					document.getElementById("statusPing").innerText = diff;
-					inProgressRequest = false;
+		function DisplayStatus(txt){
 
-					++numStatusRequests;
+			const now = new Date();
+			const diff = now - timeRequestedStatus;
+			document.getElementById("statusPing").innerText = diff;
+			inProgressRequest = false;
 
-					let a = xhr.responseText;
-					let rL = xhr.responseText.length;
-					if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
-						return;
+			++numStatusRequests;
 
-					document.getElementById("alarmArmed").innerText		= parseInt(strFromStrRange(a, rL-80, 3));
-					document.getElementById("light").innerText			= parseInt(strFromStrRange(a, rL-87, 2));
-					document.getElementById("magArmX").innerText		= parseInt(strFromStrRange(a, rL-75, 5));
-					document.getElementById("magArmY").innerText		= parseInt(strFromStrRange(a, rL-70, 5));
-					document.getElementById("magArmZ").innerText		= parseInt(strFromStrRange(a, rL-65, 5));
+			let a = txt;
+			let rL = txt.length;
+			if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
+				return;
 
-					document.getElementById("servo1").innerText			= parseInt(strFromStrRange(a, rL-60, 5));
-					document.getElementById("servo2").innerText			= parseInt(strFromStrRange(a, rL-55, 5));
+			document.getElementById("alarmArmed").innerText		= parseInt(strFromStrRange(a, 0, 3));
+			document.getElementById("light").innerText			= parseInt(strFromStrRange(a, 3, 2));
+			document.getElementById("magArmX").innerText		= parseInt(strFromStrRange(a, 5, 5));
+			document.getElementById("magArmY").innerText		= parseInt(strFromStrRange(a, 10, 5));
+			document.getElementById("magArmZ").innerText		= parseInt(strFromStrRange(a, 15, 5));
 
-					document.getElementById("rssi").innerText			= parseInt(strFromStrRange(a, rL-50, 5));
-					document.getElementById("temp").innerText			= parseInt(strFromStrRange(a, rL-45, 5));
-					document.getElementById("magX").innerText			= parseInt(strFromStrRange(a, rL-40, 5));
-					document.getElementById("magY").innerText			= parseInt(strFromStrRange(a, rL-35, 5));
-					document.getElementById("magZ").innerText			= parseInt(strFromStrRange(a, rL-30, 5));
+			document.getElementById("servo1").innerText			= parseInt(strFromStrRange(a, 20, 5));
+			document.getElementById("servo2").innerText			= parseInt(strFromStrRange(a, 25, 5));
 
-					document.getElementById("magHeading").innerText		= parseFloat(strFromStrRange(a, rL-25, 5));
-					document.getElementById("magAlarmDiff").innerText	= parseInt(strFromStrRange(a, rL-15, 5));
-					document.getElementById("magAlarmTrgr").innerText	= parseInt(strFromStrRange(a, rL-10, 5));
-					document.getElementById("alarmOutput").innerText	= parseInt(strFromStrRange(a, rL-5, 5));
-				}
-			}
-			sendWebsocketServerMessage("status");
-			//xhr.open("GET", "/status", true);
-			//xhr.send();
+			document.getElementById("rssi").innerText			= parseInt(strFromStrRange(a, 30, 5));
+			document.getElementById("temp").innerText			= parseInt(strFromStrRange(a, 35, 5));
+			document.getElementById("magX").innerText			= parseInt(strFromStrRange(a, 40, 5));
+			document.getElementById("magY").innerText			= parseInt(strFromStrRange(a, 45, 5));
+			document.getElementById("magZ").innerText			= parseInt(strFromStrRange(a, 55, 5));
+
+			document.getElementById("magHeading").innerText		= parseFloat(strFromStrRange(a, 60, 5));
+			document.getElementById("magAlarmDiff").innerText	= parseInt(strFromStrRange(a, 65, 5));
+			document.getElementById("magAlarmTrgr").innerText	= parseInt(strFromStrRange(a, 70, 5));
+			document.getElementById("alarmOutput").innerText	= parseInt(strFromStrRange(a, 75, 5));
+	
 		}
 		
-		function GetImage(){
-			//var xhr = new XMLHttpRequest();
-			//xhr.timeout = 300;
-			//xhr.responseType = "arraybuffer";
-			//xhr.ontimeout = function(e){ inProgressRequest = false; }
-			//xhr.onabort = xhr.ontimeout;
-			//xhr.onerror = xhr.ontimeout;
-			xhr.onreadystatechange = function(){
-				if(xhr.readyState == 4){
-					//if(xhr.status == 200 ){//|| xhr.status == 0){
-						if ( xhr.response.byteLength < 1 )
-							return;
-						//https://gist.github.com/candycode/f18ae1767b2b0aba568e
-						let arrayBufferView = new Uint8Array( xhr.response );
-						let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
-						let urlCreator = window.URL || window.webkitURL;
-						let imageUrl = urlCreator.createObjectURL( blob );
-						let img = document.querySelector( "#photo" );
-						img.src = imageUrl;//xhr.response;
-						camRot90(rot90);
-						//document.getElementById("photo").src = "data:image/jpeg;base64," + Buffer.from(xhr.response).toString('base64');
-					}
-				//}
-			}
-			sendWebsocketServerMessage("image");
-			//xhr.open("GET", "/image", true);
-			//xhr.send();
-		}
 		
 		
 		const NetworkResponseTypes = {
@@ -423,10 +392,10 @@
 					let i = 1;
 					switch( svrResponseType ){
 						case NetworkResponseTypes.status:
-							
+							DisplayStatus( responseStr );
 							break;
 						case NetworkResponseTypes.settings:
-							
+							DisplaySettings( responseStr );
 							break;
 						case NetworkResponseTypes.image:
 							//https://gist.github.com/candycode/f18ae1767b2b0aba568e
@@ -476,10 +445,11 @@
 				
 				
 				if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
-					GetSettings(xhr);
+					sendWebsocketServerMessage("settings");
 				}else{
-					GetStatus(xhr);
-					GetImage();
+					timeRequestedStatus = new Date()
+					//sendWebsocketServerMessage("status");
+					//sendWebsocketServerMessage("image");
 				}
 				
 				inProgressRequest = true;

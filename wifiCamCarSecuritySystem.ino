@@ -161,5 +161,8 @@ void loop() {
   PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
   //SETTINGS = 1,
 
+  if( webSockClient != NULL && !esp_websocket_client_is_connected(webSockClient) )
+    mainLoopsSinceWebSockStartedConnecting += 1;
+
   delay(100);
 }
