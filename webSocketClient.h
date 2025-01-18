@@ -43,10 +43,11 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base, i
 				if( numCmds > 0 ){ // a command was recieved
 					activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 					//do all recieved commands
-					uint16_t idx = 0;
+					uint16_t idx = 1;
 					for( uint8_t i = 0; i < numCmds; ++i ){
-						doCommand( &(buff[idx]), &(buff[idx+CMD_LEN]) );
-						idx += CMD_LEN + 32;
+						uint16_t valLen = atoir_n(&(buff[idx+CMD_LEN-1]), 4);
+						doCommand( &(buff[idx]), valLen, &(buff[idx+CMD_LEN]) );
+						idx += CMD_LEN + valLen;
 					}
 				}
 			}

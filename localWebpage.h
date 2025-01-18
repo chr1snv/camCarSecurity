@@ -16,16 +16,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 		<br/>
 		<table>
 			<tr><th>Server Url</th><td id="svrUrl"></td></tr>
-			<tr><th>Net0</th><td id="net0"></td><th>Pass0</th><td id="pass0"></td></tr>
-			<tr><th>Net1</th><td id="net1"></td><th>Pass1</th><td id="pass1"></td></tr>
-			<tr><th>Net2</th><td id="net2"></td><th>Pass2</th><td id="pass2"></td></tr>
-			<tr><th>Net3</th><td id="net3"></td><th>Pass3</th><td id="pass3"></td></tr>
-			<tr><th>Net4</th><td id="net4"></td><th>Pass4</th><td id="pass4"></td></tr>
-			<tr><th>Net5</th><td id="net5"></td><th>Pass5</th><td id="pass5"></td></tr>
-			<tr><th>Net6</th><td id="net6"></td><th>Pass6</th><td id="pass6"></td></tr>
-			<tr><th>Net7</th><td id="net7"></td><th>Pass7</th><td id="pass7"></td></tr>
-			<tr><th>Net8</th><td id="net8"></td><th>Pass8</th><td id="pass8"></td></tr>
-			<tr><th>Net9</th><td id="net9"></td><th>Pass9</th><td id="pass9"></td></tr>
+		</table>
+    <table id="storedSsidsTable">
 		</table>
 		<table>
 			<tr>
@@ -40,16 +32,22 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 			<tr>
 				<td><input id="ssid" type="text"></input></td>
 				<td><input id="pass" type="text"></input></td>
-				<td><button onclick="sendWifi_SSID_Pass()">Add SSID and Password</button></td>
+				<td><button onclick="sendWifi_SSID_Pass(0)">Add SSID and Password</button></td>
 			</tr>
 		</table>
 	<script>
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
-		function sendCmd(x, val) {
+		function sendCmd(x, val, valLen=0) {
+      if( val == undefined ){
+				val = '';
+				valLen = 0;
+			}else if( valLen == 0 ){
+        valLen = val.length;
+      }
 			var xhr = new XMLHttpRequest();
 			xhr.open("POST", "/action", true);
-			xhr.send(x.padEnd(16)+val);
+			xhr.send((x).padEnd(12)+(valLen.toString()).padStart(4)+val);
 			if(x == "ArmAlarm"){
 				document.getElementById("armAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 				document.getElementById("disarmAlarmButton").style.backgroundColor = clickableButtonBgColor;
@@ -64,7 +62,29 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       sendCmd("svrUrl", document.getElementById("svrUrlVal").value );
       sendCmd("svrCert", document.getElementById("svrCert").value );
     }
-		function sendWifi_SSID_Pass(){ sendCmd("ssidPass", document.getElementById("ssid").value.padEnd(32) + document.getElementById("pass").value.padEnd(32) ); }
+		function sendWifi_SSID_Pass(n){ 
+      sendCmd("net"+n, document.getElementById("net"+n).value.padEnd(32) );
+			sendCmd("pass"+n, document.getElementById("pass"+n).value.padEnd(32) );
+    }
+    
+    const MAX_STORED_NETWORKS = 10;
+    function fillStoredSSIDsTable(){
+			let ssidsTable = document.getElementById("storedSsidsTable");
+
+			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
+				let ssidTr = "\
+				<tr>\
+				<th>Net"+i+"</th>\
+				<td><input id='net"+i+"' type='text'></input></td>\
+				<th>Pass"+i+"</th>\
+				<td><input id='pass"+i+"' type='text'></input></td>\
+				<td><button onClick=\"sendWifi_SSID_Pass("+i+")\">Set</button></td>\
+				<td><button onClick=\"clearWifi_SSID_Pass("+i+")\">Clear</button></td>\
+				</tr>\
+				";
+				ssidsTable.innerHTML += ssidTr;
+			}
+		}
 
 		function strFromStrRange(combinedStr, strt, lenDel){
 		let strPart = "";
@@ -72,6 +92,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 			strPart += combinedStr[i];
 		return strPart;
 		}
+
+    fillStoredSSIDsTable();
 	</script>
 	</body>
 </html>

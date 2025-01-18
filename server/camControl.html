@@ -155,10 +155,10 @@
 				<td><button onclick="sendTxPower();">Set Tx Power (8-80)</button></td>
 			</tr>
 			<tr>
-				<td><button onclick="sendCmd('camFlipVertical', 1);">Vert Flip</button></td>
-				<td><button onclick="sendCmd('camFlipVertical', 0);">Vert No Flip</button></td>
-				<td><button onclick="sendCmd('camFlipHoriz', 1);">Horiz Flip</button></td>
-				<td><button onclick="sendCmd('camFlipHoriz', 0);">Horiz No Flip</button></td>
+				<td><button onclick="sendCmd('camFlipV', 1);">Vert Flip</button></td>
+				<td><button onclick="sendCmd('camFlipV', 0);">Vert No Flip</button></td>
+				<td><button onclick="sendCmd('camFlipH', 1);">Horiz Flip</button></td>
+				<td><button onclick="sendCmd('camFlipH', 0);">Horiz No Flip</button></td>
 				<td><button onclick="camRot90(1);">90deg Rotate</button></td>
 				<td><button onclick="camRot90(0);">No Rotate</button></td>
 			</tr>
@@ -187,10 +187,12 @@
 		
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
-		function sendCmd(x, val) {
-			if( val == undefined )
+		function sendCmd(x, val, valLen=0) {
+			if( val == undefined ){
 				val = ''
-			let sendStr = ("1"+x).padEnd(17)+val.padEnd(32);
+				valLen = 0
+			}
+			let sendStr = ("1"+x).padEnd(12)+(valLen.toString()).padStart(4)+val;
 			sendWebsocketServerMessage(sendStr);
 			//xhr.send(sendStr);
 			if(x == "ArmAlarm"){
@@ -203,7 +205,7 @@
 		}
 
 		function sendMagThreshold(){
-			sendCmd("magAlarmThreshold", document.getElementById("magThresholdNum").value );
+			sendCmd("magAlrmThrsh", document.getElementById("magThresholdNum").value );
 		}
 		function sendCamQuality(){
 			sendCmd("camQuality", document.getElementById("camQualityNum").value );
@@ -211,8 +213,13 @@
 		function sendTxPower(){
 			sendCmd("txPower", document.getElementById("txPowerNum").value );
 		}
-		function sendWifi_SSID_Pass(){
-			sendCmd("ssidPass", document.getElementById("ssid").value.padEnd(32) + document.getElementById("pass").value.padEnd(32) );
+		function sendWifi_SSID_Pass(n){
+			sendCmd("net"+n, document.getElementById("ssid").value.padEnd(32) );
+			sendCmd("pass"+n, document.getElementById("pass").value.padEnd(32) );
+		}
+		function clearWifi_SSID_Pass(n){
+			sendCmd("net"+n, '' );
+			sendCmd("pass"+n, '' );
 		}
 
 		var rot90 = false;
@@ -238,8 +245,8 @@
 				<td><input id='net"+i+"' type='text'></input></td>\
 				<th>Pass"+i+"</th>\
 				<td><input id='pass"+i+"' type='text'></input></td>\
-				<td><button onClick=\"sendCmd(\'ssid"+i+"\', document.getElementById(\'net"+i+"\').value.padEnd(32) ); sendCmd(\'pass"+i+"\', document.getElementById(\'pass"+i+"\').value.padEnd(32) );\">Set</button></td>\
-				<td><button onClick=\"sendCmd(\'ssid"+i+"\',\'\'); sendCmd(\'pass"+i+"\',\'\');\">Clear</button></td>\
+				<td><button onClick=\"sendWifi_SSID_Pass("+i+")\">Set</button></td>\
+				<td><button onClick=\"clearWifi_SSID_Pass("+i+")\">Clear</button></td>\
 				</tr>\
 				";
 				ssidsTable.innerHTML += ssidTr;
@@ -448,8 +455,8 @@
 					sendWebsocketServerMessage("settings");
 				}else{
 					timeRequestedStatus = new Date()
-					//sendWebsocketServerMessage("status");
-					//sendWebsocketServerMessage("image");
+					sendWebsocketServerMessage("status");
+					sendWebsocketServerMessage("image");
 				}
 				
 				inProgressRequest = true;

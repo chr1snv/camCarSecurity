@@ -5,7 +5,16 @@
 
 httpd_handle_t camera_httpd = NULL;
 
-#define CMD_LEN 16
+
+#define CMD_VAL_LEN_LEN 4
+#define CMD_NAME_LEN 12
+#define CMD_LEN CMD_NAME_LEN+CMD_VAL_LEN_LEN
+#define CMD_BUFF_MAX_LEN 2048
+//commands are recieved in the format
+// | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
+//||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
+#define MAX_SVR_URL_LEN 1024
+
 
 #include "localWebpage.h"
 
@@ -101,17 +110,17 @@ uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
   }
 }
 
-bool doCommand( const char * cmd, const char * value ){
+bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 
 	bool sucessfulyHandledCmd = true;
 
 	//for camera setting changes
 	sensor_t * s = esp_camera_sensor_get();
 
-	if(!strncmp(cmd, "camFlipVertical", 15)) { //flip the camera vertically
+	if(!strncmp(cmd, "camFlipV", 8)) { //flip the camera vertically
 		s->set_vflip(s, atoi(value));          // 0 = disable , 1 = enable
 	}
-	else if(!strncmp(cmd, "camFlipHoriz", 12)) { //flip the camera horizontally
+	else if(!strncmp(cmd, "camFlipH", 8)) { //flip the camera horizontally
 		s->set_hmirror(s, atoi(value));          // 0 = disable , 1 = enable
 	}
 	else if(!strncmp(cmd, "camResolution", 13)){
@@ -185,7 +194,7 @@ bool doCommand( const char * cmd, const char * value ){
 		ArmAlarm(false);
 		Serial.println("DisarmAlarm");
 	}
-	else if(!strncmp(cmd, "magAlarmThreshold", 17)){
+	else if(!strncmp(cmd, "magAlrmThrsh", 12)){
 		MAG_ALARM_DELTA_THRESHOLD = atoi(value);
 	}
 	else if(!strncmp(cmd, "txPower", 7)){
@@ -193,22 +202,24 @@ bool doCommand( const char * cmd, const char * value ){
 	}
 	else if(!strncmp(cmd, "svrUrl", 6)){
 		preferences.begin("storedVals", false);
-		preferences.putString("svrUrl", String(value) );
-		Serial.print(" storing serverUrl "); Serial.println( String(value) );
+		uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
+		preferences.putBytes("svrUrl", value, storLen );
+		Serial.print(" storing len ");Serial.println(storLen);
 		preferences.end();
 	}
 	else if(!strncmp(cmd, "svrCert", 7)){
 		preferences.begin("storedVals", false);
-		preferences.putString("svrCert", value );
-		Serial.println(" stored serverCert ");
+		uint16_t storLen = min( valLen, (uint16_t)CMD_BUFF_MAX_LEN);
+		preferences.putBytes("svrCert", value, valLen );
+		Serial.println(" storing len ");Serial.println(storLen);
 		preferences.end();
 	}
-	else if(!strncmp(cmd, "ssid", 4)){
+	else if(!strncmp(cmd, "net", 4)){
 		uint8_t netNum = cmd[4] -'0';
 		preferences.begin("storedVals", false);
 		sprintf( storedPrefKey, "net%i", netNum );
-		char cStrToStore[32]; strlcpy( cStrToStore, value, NETWORK_NAME_LEN );
-		preferences.putString( storedPrefKey, String(cStrToStore) );
+		char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, value, NETWORK_NAME_LEN );
+		preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
 		Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
 		preferences.end();
 	}
@@ -216,8 +227,8 @@ bool doCommand( const char * cmd, const char * value ){
 		uint8_t netNum = cmd[4] -'0';
 		preferences.begin("storedVals", false);
 		sprintf( storedPrefKey, "pass%i", netNum );
-		char cStrToStore[32]; strlcpy( cStrToStore, &(value[32]), NETWORK_NAME_LEN );
-		preferences.putString( storedPrefKey, String(cStrToStore) );
+		char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, &(value[NETWORK_NAME_LEN]), NETWORK_NAME_LEN );
+		preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
 		Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
 		preferences.end();
 	}
@@ -228,12 +239,33 @@ bool doCommand( const char * cmd, const char * value ){
 	return sucessfulyHandledCmd;
 }
 
+//ascii to int reverse iteration for n characters
+//input is end of number (1's place)
+//counts up in significance (x10), decrementing string index from start index
+uint16_t atoir_n( const char * c, uint8_t n ){
+	uint16_t accum = 0;
+	uint16_t mult = 1;
+	Serial.print( "atoir_n d ");
+	for( uint8_t i = 0; i < n; ++i ){
+		char d = c[-i];
+		if( d >= '0' && d <= '9' )
+			accum += (d - '0')*mult;
+		else
+			break;
+		mult *= 10;
+		Serial.print( d ); Serial.print(" acum ");Serial.print(accum);Serial.print(" d ");
+	}
+	Serial.print(" accum ");Serial.println(accum);
+	return accum;
+}
+
 //https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/protocols/esp_http_server.html
 static esp_err_t cmd_post_handler( httpd_req_t * req ){
-	char content[2048];
-	size_t recv_size = min( req->content_len, sizeof(content));
+	char content[CMD_BUFF_MAX_LEN];
+	size_t recv_size = min( (int)(req->content_len), CMD_BUFF_MAX_LEN );
+	Serial.print("recv_size ");Serial.println( recv_size );
 
-	int ret = httpd_req_recv(req, content, recv_size);
+	int ret = httpd_req_recv(req, &content[0], recv_size);
 	if( ret <= 0 ){
 		if( ret == HTTPD_SOCK_ERR_TIMEOUT ){
 			httpd_resp_send_408(req);
@@ -241,7 +273,8 @@ static esp_err_t cmd_post_handler( httpd_req_t * req ){
 		return ESP_FAIL;
 	}
 
-	if( !doCommand( content, &content[CMD_LEN] ) )
+	uint16_t valLen = atoir_n(&content[CMD_LEN-1], 4);
+	if( !doCommand( &content[0], valLen, &content[CMD_LEN] ) )
 		return httpd_resp_send_500(req); //did not understand or was able to handle the requested cmd
 
 	const char resp[] = "cmd recieved";
@@ -249,46 +282,6 @@ static esp_err_t cmd_post_handler( httpd_req_t * req ){
 	return ESP_OK;
 }
 
-
-static esp_err_t cmd_handler( httpd_req_t *req ){
-	char*  buf;
-	size_t buf_len;
-	char cmd[32]	= {0,};
-	char value[2048] 	= {0,};
-
-	buf_len = httpd_req_get_url_query_len(req) + 1;
-	if (buf_len > 1) {
-		buf = (char*)malloc(buf_len);
-		if(!buf){
-			httpd_resp_send_500(req);
-			return ESP_FAIL;
-		}
-		
-		if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) { //get the part of url after ?
-			if (httpd_query_key_value(buf, "go", cmd, sizeof(cmd)) == ESP_OK) { //get go= value
-				httpd_query_key_value(buf, "val", value, sizeof(value));
-			} else {
-				free(buf);
-				httpd_resp_send_404(req);
-				return ESP_FAIL;
-			}
-		} else {
-			free(buf);
-			httpd_resp_send_404(req);
-			return ESP_FAIL;
-		}
-		free(buf);
-	} else {
-		httpd_resp_send_404(req);
-		return ESP_FAIL;
-	}
-
-	if( !doCommand( cmd, value ) )
-		return httpd_resp_send_500(req); //did not understand or was able to handle the requested cmd
-
-	httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-	return httpd_resp_send(req, NULL, 0);
-}
 
 bool isAUrl(String str){
 	int strLen = str.length();
@@ -333,19 +326,29 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 
 	if( webSockClient == NULL || !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 500 ){
 		mainLoopsSinceWebSockStartedConnecting = 0;
+
+		uint16_t serverUrlLen = 0;
+		uint16_t serverCertLen = 0;
+		char serverUrl[MAX_SVR_URL_LEN] = {'\0'};
+		char serverCert[CMD_BUFF_MAX_LEN] = {'\0'};
 		preferences.begin("storedVals", true);
-		String serverUrl = preferences.getString("svrUrl");
-		String serverCert = preferences.getString("svrCert");
+			serverUrlLen = preferences.getBytesLength("svrUrl");
+			serverCertLen = preferences.getBytesLength("serverCert");
+			preferences.getBytes("svrUrl", serverUrl, serverUrlLen);
+			preferences.getString("svrCert", serverCert, serverCertLen);
 		preferences.end();
 
 		if( isAUrl(serverUrl) ){
 
 			//https://docs.espressif.com/projects/esp-protocols/esp_websocket_client/docs/latest/index.html
-			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.println( "|" );
+			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.print( "|" ); Serial.println( serverUrlLen );
+			Serial.print( "Cert "); 
+			Serial.print( serverCert );
+			Serial.print("|"); Serial.println( serverCertLen );
 			const esp_websocket_client_config_t ws_cfg = {
-				.uri = serverUrl.c_str(),//"wss://echo.websocket.org",
+				.uri = serverUrl,//"wss://echo.websocket.org",
 				//.port = 4567,
-				.cert_pem = (const char *)serverCert.c_str(),
+				.cert_pem = (const char *)serverCert,
 				//.subprotocol = 
 				.transport = WEBSOCKET_TRANSPORT_OVER_SSL,
 				.skip_cert_common_name_check = true,
