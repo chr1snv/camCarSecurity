@@ -9,11 +9,16 @@ httpd_handle_t camera_httpd = NULL;
 #define CMD_VAL_LEN_LEN 4
 #define CMD_NAME_LEN 12
 #define CMD_LEN CMD_NAME_LEN+CMD_VAL_LEN_LEN
-#define CMD_BUFF_MAX_LEN 2048
+#define CMD_BUFF_MAX_LEN 512
+
 //commands are recieved in the format
 // | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
 //||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
 #define MAX_SVR_URL_LEN 1024
+#define SVR_CERT_MAX_LEN 2048
+#define SVR_CERT_PART_LENGTH 256
+#define NUM_SVR_CERT_PARTS SVR_CERT_MAX_LEN / SVR_CERT_PART_LENGTH
+
 
 
 #include "localWebpage.h"
@@ -110,6 +115,26 @@ uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
   }
 }
 
+//ascii to int reverse iteration for n characters
+//input is end of number (1's place)
+//counts up in significance (x10), decrementing string index from start index
+uint16_t atoir_n( const char * c, uint8_t n ){
+	uint16_t accum = 0;
+	uint16_t mult = 1;
+	Serial.print( "atoir_n d ");
+	for( uint8_t i = 0; i < n; ++i ){
+		char d = c[-i];
+		if( d >= '0' && d <= '9' )
+			accum += (d - '0')*mult;
+		else
+			break;
+		mult *= 10;
+		Serial.print( d ); Serial.print(" acum ");Serial.print(accum);Serial.print(" d ");
+	}
+	Serial.print(" accum ");Serial.println(accum);
+	return accum;
+}
+
 bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 
 	bool sucessfulyHandledCmd = true;
@@ -195,41 +220,49 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.println("DisarmAlarm");
 	}
 	else if(!strncmp(cmd, "magAlrmThrsh", 12)){
-		MAG_ALARM_DELTA_THRESHOLD = atoi(value);
+		MAG_ALARM_DELTA_THRESHOLD = atoir_n(&value[valLen-1], valLen);
 	}
 	else if(!strncmp(cmd, "txPower", 7)){
-		MAG_ALARM_DELTA_THRESHOLD = atoi(value);
+		MAG_ALARM_DELTA_THRESHOLD = atoir_n(&value[valLen-1], valLen);
 	}
 	else if(!strncmp(cmd, "svrUrl", 6)){
 		preferences.begin("storedVals", false);
-		uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
-		preferences.putBytes("svrUrl", value, storLen );
-		Serial.print(" storing len ");Serial.println(storLen);
+			uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
+			preferences.putBytes("svrUrl", value, storLen );
+			Serial.print(" storing svrUrl len ");Serial.println(storLen);
+		preferences.end();
+	}
+	else if(!strncmp(cmd, "svrCertLen", 10)){
+		preferences.begin("storedVals", false);
+			uint16_t certLen = atoir_n(&value[valLen-1], valLen );
+			preferences.putInt( "svrCertLen", certLen );
+			Serial.print("storing svrCert len "); Serial.println(certLen);
 		preferences.end();
 	}
 	else if(!strncmp(cmd, "svrCert", 7)){
+		uint8_t certNum = cmd[7] - '0';
 		preferences.begin("storedVals", false);
-		uint16_t storLen = min( valLen, (uint16_t)CMD_BUFF_MAX_LEN);
-		preferences.putBytes("svrCert", value, valLen );
-		Serial.println(" storing len ");Serial.println(storLen);
+			uint16_t storLen = min( valLen, (uint16_t)SVR_CERT_PART_LENGTH);
+			preferences.putBytes("svrCert"+certNum, value, storLen );
+			Serial.print("storing svrCert "); Serial.print(certNum); Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
 	}
 	else if(!strncmp(cmd, "net", 4)){
 		uint8_t netNum = cmd[4] -'0';
 		preferences.begin("storedVals", false);
-		sprintf( storedPrefKey, "net%i", netNum );
-		char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, value, NETWORK_NAME_LEN );
-		preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
-		Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
+			sprintf( storedPrefKey, "net%i", netNum );
+			char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, value, NETWORK_NAME_LEN );
+			preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
+			Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
 		preferences.end();
 	}
 	else if(!strncmp(cmd, "pass", 4)){
 		uint8_t netNum = cmd[4] -'0';
 		preferences.begin("storedVals", false);
-		sprintf( storedPrefKey, "pass%i", netNum );
-		char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, &(value[NETWORK_NAME_LEN]), NETWORK_NAME_LEN );
-		preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
-		Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
+			sprintf( storedPrefKey, "pass%i", netNum );
+			char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, &(value[NETWORK_NAME_LEN]), NETWORK_NAME_LEN );
+			preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
+			Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
 		preferences.end();
 	}
 	else {
@@ -239,24 +272,24 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	return sucessfulyHandledCmd;
 }
 
-//ascii to int reverse iteration for n characters
-//input is end of number (1's place)
-//counts up in significance (x10), decrementing string index from start index
-uint16_t atoir_n( const char * c, uint8_t n ){
-	uint16_t accum = 0;
-	uint16_t mult = 1;
-	Serial.print( "atoir_n d ");
-	for( uint8_t i = 0; i < n; ++i ){
-		char d = c[-i];
-		if( d >= '0' && d <= '9' )
-			accum += (d - '0')*mult;
-		else
+//read the stored server cert back from preferences
+void readSvrCert(uint16_t & length, char * svrCert ){
+	//Serial.print("readSvrCert len ");
+	preferences.begin("storedVals", true);
+	length = preferences.getInt( "svrCertLen" );
+	//Serial.println( length );
+	uint16_t partIdx;
+	uint16_t partLen;
+	for( uint8_t i = 0; i < NUM_SVR_CERT_PARTS; ++i ){
+		partIdx = i*SVR_CERT_PART_LENGTH;
+		uint16_t remLen = length - partIdx;
+		partLen = min( (uint16_t)SVR_CERT_PART_LENGTH, remLen);
+		//Serial.print( "partIdx " );Serial.print( partIdx ); Serial.print( " remLen " ); Serial.print(remLen); Serial.print( " partLen " );Serial.print( partLen );
+		if( partLen <=0 )
 			break;
-		mult *= 10;
-		Serial.print( d ); Serial.print(" acum ");Serial.print(accum);Serial.print(" d ");
+		preferences.getBytes("svrCert"+i, &svrCert[i*SVR_CERT_PART_LENGTH], partLen );
 	}
-	Serial.print(" accum ");Serial.println(accum);
-	return accum;
+	preferences.end();
 }
 
 //https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/protocols/esp_http_server.html
@@ -330,20 +363,19 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 		uint16_t serverUrlLen = 0;
 		uint16_t serverCertLen = 0;
 		char serverUrl[MAX_SVR_URL_LEN] = {'\0'};
-		char serverCert[CMD_BUFF_MAX_LEN] = {'\0'};
+		char serverCert[SVR_CERT_MAX_LEN] = {'\0'};
 		preferences.begin("storedVals", true);
 			serverUrlLen = preferences.getBytesLength("svrUrl");
-			serverCertLen = preferences.getBytesLength("serverCert");
 			preferences.getBytes("svrUrl", serverUrl, serverUrlLen);
-			preferences.getString("svrCert", serverCert, serverCertLen);
+			readSvrCert( serverCertLen, serverCert );
 		preferences.end();
 
 		if( isAUrl(serverUrl) ){
 
 			//https://docs.espressif.com/projects/esp-protocols/esp_websocket_client/docs/latest/index.html
 			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.print( "|" ); Serial.println( serverUrlLen );
-			Serial.print( "Cert "); 
-			Serial.print( serverCert );
+			Serial.print( "Cert Len "); 
+			//Serial.print( serverCert );
 			Serial.print("|"); Serial.println( serverCertLen );
 			const esp_websocket_client_config_t ws_cfg = {
 				.uri = serverUrl,//"wss://echo.websocket.org",

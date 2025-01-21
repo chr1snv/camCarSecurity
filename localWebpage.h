@@ -17,18 +17,18 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 		<table>
 			<tr><th>Server Url</th><td id="svrUrl"></td></tr>
 		</table>
-    <table id="storedSsidsTable">
+		<table id="storedSsidsTable">
 		</table>
 		<table>
 			<tr>
 				<td><input id="svrUrlVal" type="text"></input></td>
 				<td><button onclick="sendSvrUrl()">Set Cloud Server Url and cert (wss://<ip or url>:port)</button></td>
 			</tr>
-      <tr>
-        <td><textarea id="svrCert" cols="80" rows="10"></textarea></td>
-      </tr>
-    </table>
-    <table>
+			<tr>
+			<td><textarea id="svrCert" cols="80" rows="10"></textarea></td>
+			</tr>
+		</table>
+		<table>
 			<tr>
 				<td><input id="ssid" type="text"></input></td>
 				<td><input id="pass" type="text"></input></td>
@@ -38,14 +38,21 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 	<script>
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
-		function sendCmd(x, val, valLen=0) {
-      if( val == undefined ){
+		function sendCmd(x, val, valLen=0, sendCmpCb=none) {
+			if( val == undefined ){
 				val = '';
 				valLen = 0;
 			}else if( valLen == 0 ){
-        valLen = val.length;
-      }
-			var xhr = new XMLHttpRequest();
+				valLen = val.length;
+			}
+			let xhr = new XMLHttpRequest();
+			xhr.onreadystatechange = function(){
+				if(xhr.readyState == 4){
+					//if(xhr.status == 200 || xhr.status == 0){
+						sendCmpCb(); //callback
+					//}
+				}
+			}
 			xhr.open("POST", "/action", true);
 			xhr.send((x).padEnd(12)+(valLen.toString()).padStart(4)+val);
 			if(x == "ArmAlarm"){
@@ -58,17 +65,46 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 		}
 
 		function sendTxPower(){ sendCmd("txPower", document.getElementById("txPowerNum").value ); }
-		function sendSvrUrl(){ 
-      sendCmd("svrUrl", document.getElementById("svrUrlVal").value );
-      sendCmd("svrCert", document.getElementById("svrCert").value );
-    }
+		function sendSvrUrl(cbItr=0){ 
+			if( cbItr == 0 ){
+				let svrUrlStr = document.getElementById("svrUrlVal").value;
+				sendCmd("svrUrl", svrUrlStr, svrUrlStr.length, function(){ sendSvrUrl(1) } );
+			}
+
+			if( cbItr > 0 ){ //send certificate in parts
+				let certStr = document.getElementById("svrCert").value;
+				let certStrLen = certStr.length;
+
+				if( cbItr == 1 ){
+					let certStrLenStr = ""+certStrLen;
+					sendCmd("svrCertLen", certStrLenStr, certStrLenStr.length, function(){ sendSvrUrl(2) } );
+					return;
+				}
+			
+				let NUM_SVR_CERT_PARTS = 8;
+				let SVR_CERT_PART_LENGTH = 256;
+				let partIdx = 0;
+				let partLen = SVR_CERT_PART_LENGTH;
+
+				//for( let i = 0; i < NUM_SVR_CERT_PARTS; ++i){
+					let i = cbItr - 2;
+					partIdx = i*SVR_CERT_PART_LENGTH;
+					partLen = Math.min( SVR_CERT_PART_LENGTH, certStrLen - partIdx);
+					if( partLen <= 0 )
+						return;
+					let certPart = certStr.slice(partIdx,partIdx+partLen);
+					sendCmd("svrCert"+i, certPart, partLen, function(){ sendSvrUrl(i+2+1) } );
+				//}
+			}
+		}
+
 		function sendWifi_SSID_Pass(n){ 
-      sendCmd("net"+n, document.getElementById("net"+n).value.padEnd(32) );
+			sendCmd("net"+n, document.getElementById("net"+n).value.padEnd(32) );
 			sendCmd("pass"+n, document.getElementById("pass"+n).value.padEnd(32) );
-    }
-    
-    const MAX_STORED_NETWORKS = 10;
-    function fillStoredSSIDsTable(){
+		}
+
+		const MAX_STORED_NETWORKS = 10;
+		function fillStoredSSIDsTable(){
 			let ssidsTable = document.getElementById("storedSsidsTable");
 
 			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
@@ -87,13 +123,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 		}
 
 		function strFromStrRange(combinedStr, strt, lenDel){
-		let strPart = "";
-		for( let i = strt; i < strt+lenDel; ++i)
-			strPart += combinedStr[i];
-		return strPart;
+			let strPart = "";
+			for( let i = strt; i < strt+lenDel; ++i)
+				strPart += combinedStr[i];
+			return strPart;
 		}
 
-    fillStoredSSIDsTable();
+		fillStoredSSIDsTable();
 	</script>
 	</body>
 </html>
