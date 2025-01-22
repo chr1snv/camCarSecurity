@@ -1,6 +1,8 @@
+String logStr;
+
 void log_error_if_nonzero(String s, int v){
 	if( v != 0)
-		ESP_LOGI(TAG, s);
+		logStr += s;
 }
 
 //refrence
@@ -10,16 +12,16 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base, i
 	esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
 	switch (event_id) {
 		case WEBSOCKET_EVENT_BEGIN:
-			ESP_LOGI(TAG, "WEBSOCKET_EVENT_BEGIN");
+			logStr += "WEBSOCKET_EVENT_BEGIN";
 			break;
 		case WEBSOCKET_EVENT_CONNECTED:
-			ESP_LOGI(TAG, "WEBSOCKET_EVENT_CONNECTED");
+			logStr += "WEBSOCKET_EVENT_CONNECTED";
 			break;
 		case WEBSOCKET_EVENT_DISCONNECTED:
-      		ESP_LOGI(TAG, "WEBSOCKET_EVENT_DISCONNECTED");
+      		logStr += "WEBSOCKET_EVENT_DISCONNECTED";
 			break;
 		case WEBSOCKET_EVENT_ERROR:
-			ESP_LOGI(TAG, "WEBSOCKET_EVENT_ERROR");
+			logStr += "WEBSOCKET_EVENT_ERROR";
 			log_error_if_nonzero("HTTP status code",  data->error_handle.esp_ws_handshake_status_code);
 			if (data->error_handle.error_type == WEBSOCKET_ERROR_TYPE_TCP_TRANSPORT) {
 				log_error_if_nonzero("reported from esp-tls", data->error_handle.esp_tls_last_esp_err);
@@ -28,13 +30,13 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base, i
 			}
 			break;
 		case WEBSOCKET_EVENT_FINISH:
-			ESP_LOGI(TAG, "WEBSOCKET_EVENT_FINISH");
+			logStr += "WEBSOCKET_EVENT_FINISH";
 			break;
 		case WEBSOCKET_EVENT_DATA:
-			ESP_LOGI(TAG, "WEBSOCKET_EVENT_DATA");
+			logStr += "WEBSOCKET_EVENT_DATA";
 			int len = data->payload_len;
 			const char * buff = (const char *)&data->data_ptr[data->payload_offset];
-			Serial.println(data->op_code);   //Print return code
+			logStr += data->op_code;   //Print return code
 			//check the response for pending commands
 			if ( len > 0 ){
 				//numCmds can be 0-9 (one ascii digit)

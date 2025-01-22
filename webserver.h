@@ -14,12 +14,15 @@ httpd_handle_t camera_httpd = NULL;
 //commands are recieved in the format
 // | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
 //||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
-#define MAX_SVR_URL_LEN 1024
-#define SVR_CERT_MAX_LEN 2048
+#define MAX_SVR_URL_LEN 128
+#define SVR_CERT_MAX_LEN 1400
 #define SVR_CERT_PART_LENGTH 256
-#define NUM_SVR_CERT_PARTS SVR_CERT_MAX_LEN / SVR_CERT_PART_LENGTH
+#define NUM_SVR_CERT_PARTS ceil(SVR_CERT_MAX_LEN / (float)SVR_CERT_PART_LENGTH)
 
-
+uint16_t serverUrlLen = 0;
+uint16_t serverCertLen = 0;
+char serverUrl[MAX_SVR_URL_LEN] = {'\0'};
+char serverCert[SVR_CERT_MAX_LEN] = {'\0'};
 
 #include "localWebpage.h"
 
@@ -284,11 +287,13 @@ void readSvrCert(uint16_t & length, char * svrCert ){
 		partIdx = i*SVR_CERT_PART_LENGTH;
 		uint16_t remLen = length - partIdx;
 		partLen = min( (uint16_t)SVR_CERT_PART_LENGTH, remLen);
-		//Serial.print( "partIdx " );Serial.print( partIdx ); Serial.print( " remLen " ); Serial.print(remLen); Serial.print( " partLen " );Serial.print( partLen );
+		//Serial.print( "partIdx " );Serial.print(i);Serial.print(" ");Serial.print( partIdx ); 
+		//Serial.print( " remLen " ); Serial.print(remLen); Serial.print( " partLen " );Serial.println( partLen );
 		if( partLen <=0 )
 			break;
 		preferences.getBytes("svrCert"+i, &svrCert[i*SVR_CERT_PART_LENGTH], partLen );
 	}
+	svrCert[length] = '\0';
 	preferences.end();
 }
 
@@ -357,13 +362,10 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 			return; //skip sending for INACTIVE_COMMAND_LOOP_INTERVAL loops
 	}
 
-	if( webSockClient == NULL || !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 500 ){
+	if( webSockClient == NULL || !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 10000 ){
 		mainLoopsSinceWebSockStartedConnecting = 0;
 
-		uint16_t serverUrlLen = 0;
-		uint16_t serverCertLen = 0;
-		char serverUrl[MAX_SVR_URL_LEN] = {'\0'};
-		char serverCert[SVR_CERT_MAX_LEN] = {'\0'};
+		
 		preferences.begin("storedVals", true);
 			serverUrlLen = preferences.getBytesLength("svrUrl");
 			preferences.getBytes("svrUrl", serverUrl, serverUrlLen);
@@ -371,6 +373,9 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 		preferences.end();
 
 		if( isAUrl(serverUrl) ){
+
+			if( webSockClient != NULL )
+				esp_websocket_client_destroy(webSockClient);
 
 			//https://docs.espressif.com/projects/esp-protocols/esp_websocket_client/docs/latest/index.html
 			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.print( "|" ); Serial.println( serverUrlLen );
@@ -381,16 +386,18 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 				.uri = serverUrl,//"wss://echo.websocket.org",
 				//.port = 4567,
 				.cert_pem = (const char *)serverCert,
+				.cert_len = serverCertLen + 1,
 				//.subprotocol = 
 				.transport = WEBSOCKET_TRANSPORT_OVER_SSL,
 				.skip_cert_common_name_check = true,
 				
 			};
-			esp_websocket_client_handle_t webSockClient = esp_websocket_client_init(&ws_cfg);
+			webSockClient = esp_websocket_client_init(&ws_cfg);
 			Serial.println( "webSock cli inited");
 			esp_err_t wEvts = esp_websocket_register_events(webSockClient, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void *)webSockClient);
 			Serial.print( "webSock reg " ); Serial.println( wEvts );
 			wEvts = esp_websocket_client_start(webSockClient);
+			Serial.print("free heap "); Serial.print(esp_get_free_heap_size());
 			Serial.print( "webSock start " ); Serial.println( wEvts );
 
 			//esp_websocket_client_send_text(client, data, len, portMAX_DELAY);
@@ -437,6 +444,9 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 }
 
 void startCameraServer(){
+	if( camera_httpd != NULL )
+		return;
+
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 	config.server_port = 80;
 	httpd_uri_t index_uri = {

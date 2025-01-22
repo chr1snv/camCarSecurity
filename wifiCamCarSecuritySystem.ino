@@ -115,8 +115,8 @@ void setup() {
   //esp_wifi_init();
   connectWiFi(wifi_scanNetworks());
   
-  // Start streaming web server
-  startCameraServer();
+  // Start local web server (should only start if can't connect to wifi or cloud server)
+  //startCameraServer();
 
   Serial.println("Local webpage ready! ");
   if( APssid[0] != 0){ //if local ap mode (couldn't find network)
@@ -163,6 +163,11 @@ void loop() {
 
   if( webSockClient != NULL && !esp_websocket_client_is_connected(webSockClient) )
     mainLoopsSinceWebSockStartedConnecting += 1;
+
+  if( logStr.length() > 0 ){
+    Serial.print( logStr );
+    logStr = "";
+  }
 
   delay(100);
 }
