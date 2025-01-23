@@ -19,10 +19,17 @@ httpd_handle_t camera_httpd = NULL;
 #define SVR_CERT_PART_LENGTH 256
 #define NUM_SVR_CERT_PARTS ceil(SVR_CERT_MAX_LEN / (float)SVR_CERT_PART_LENGTH)
 
+//data is sent over the websocket to the cloud server in the format
+//|numData(1) | 'd'(1) |dataTypeStr (11) | deviceId(4) | dataLen(6) | data
+//with numbers start padded/lsb aligned with end of allocated area
+#define WEB_SEND_HDR_LEN 23
+
 uint16_t serverUrlLen = 0;
 uint16_t serverCertLen = 0;
 char serverUrl[MAX_SVR_URL_LEN] = {'\0'};
 char serverCert[SVR_CERT_MAX_LEN] = {'\0'};
+
+uint16_t devId;
 
 #include "localWebpage.h"
 
@@ -33,25 +40,33 @@ static esp_err_t index_handler(httpd_req_t *req){
 
 #define STATUS_RESPONSE_LENGTH 80
 void fillStatusString(){
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+0 ]), 3,  "%i\n", alarmArmed);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+3 ]), 2,  "%i\n", (int)lightLedValue);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+5 ]), 5,  "%i\n", magAX);//alarmInit_magSample.X);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+10]), 5,  "%i\n", magAY);//alarmInit_magSample.Y);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+15]), 5,  "%i\n", magAZ);//alarmInit_magSample.Z);
+	//fill header
+	lastCsiInfoStr[0] = '1';
+	lastCsiInfoStr[1] = 'd';
+	snprintf( &(lastCsiInfoStr[2]), 11, "Stat" );
+	snprintf( &(lastCsiInfoStr[13]), 4, "%04d", devId );
+	snprintf( &(lastCsiInfoStr[17]), 6, "%06d", STATUS_RESPONSE_LENGTH );
 
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+20]), 5,  "%i\n",servo1Angle);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+25]), 5,  "%i\n",servo2Angle);
+	//fill data
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+0 ]), 3,  "%i\n", alarmArmed);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+3 ]), 2,  "%i\n", (int)lightLedValue);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+5 ]), 5,  "%i\n", magAX);//alarmInit_magSample.X);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+10]), 5,  "%i\n", magAY);//alarmInit_magSample.Y);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+15]), 5,  "%i\n", magAZ);//alarmInit_magSample.Z);
 
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+30]), 5,  "%i\n", staRssi);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+35]), 5,  "%i\n", lastTemperature);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+40]), 5,  "%i\n", magX);//compass.magSample.X);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+45]), 5,  "%i\n", magY);//compass.magSample.Y);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+50]), 5,  "%i\n", magZ);//compass.magSample.Z);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+20]), 5,  "%i\n",servo1Angle);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+25]), 5,  "%i\n",servo2Angle);
 
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+55]), 10, "%f\n", magHeading);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+65]), 5,  "%i\n", magAlarmDiff);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+70]), 5,  "%i\n", magAlarmTriggered);
-	snprintf( &(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH+75]), 5,  "%i\n", alarmOutput);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+30]), 5,  "%i\n", staRssi);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+35]), 5,  "%i\n", lastTemperature);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+40]), 5,  "%i\n", magX);//compass.magSample.X);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+45]), 5,  "%i\n", magY);//compass.magSample.Y);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+50]), 5,  "%i\n", magZ);//compass.magSample.Z);
+
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+55]), 10, "%f\n", magHeading);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+65]), 5,  "%i\n", magAlarmDiff);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+70]), 5,  "%i\n", magAlarmTriggered);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+75]), 5,  "%i\n", alarmOutput);
 }
 
 #define SETTINGS_RESPONSE_LENGTH 52+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)
@@ -418,7 +433,7 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 		int httpResponseCode;
 		if( postType == DEV_STATUS ){
 			fillStatusString();
-			httpResponseCode = esp_websocket_client_send_text(webSockClient, (const char *)&(lastCsiInfoStr[CSI_INF_STR_LEN-STATUS_RESPONSE_LENGTH]), STATUS_RESPONSE_LENGTH, portMAX_DELAY);
+			httpResponseCode = esp_websocket_client_send_text(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
 		}else if( postType == DEV_SETTINGS ){
 			fillSettingsString();
 			httpResponseCode = esp_websocket_client_send_text(webSockClient, (const char *)&(lastCsiInfoStr[0]), SETTINGS_RESPONSE_LENGTH, portMAX_DELAY);

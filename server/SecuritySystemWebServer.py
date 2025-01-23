@@ -111,10 +111,30 @@ class Device:
 		#print( "magAlarmTriggered " + self.magAlarmTriggered )
 		#print( "alarmOutput " + self.alarmOutput )
 
+	def fillSettings(self, datStr):
+		self.lastSettings =  postStr
+		self.lastSettingsTime = datetime.datetime.now()
+		
+	def fillImage(self, datStr, datStrLen):
+		self.lastImage = datStr
+		self.lastImageLength = datStrLen
+		self.lastImageTime = datetime.datetime.now()
+
 device = Device()
 
 #pending commands
 cmds = []
+
+def GetCommandListBytes():
+	global cmds
+	output = io.StringIO()
+	output.write( str(len(cmds)) )
+	for cmd in cmds:
+		output.write( '{:<32}'.format((cmd[0])[:32]) )
+		output.write( '{:<32}'.format((cmd[1])[:32]) )
+	cmds = [] #should add wait for device to confirm recept of commands, though doing this now for simplicity
+	outBytes = output.getvalue().encode('utf-8')
+	return outBytes
 
 def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
@@ -123,22 +143,75 @@ def setKeepAlive(rqh):
 #status		: 0,
 #settings	: 1,
 #image 		: 2
+
+#data is sent over the websocket in the format
+	#|numData(1) | dataTypeStr (12) | deviceId(4) | dataLen(6) | data
+#commands are recieved in the format
+	# | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
+	#||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
+
+
+#ascii to int reverse iteration for n characters
+#input is end of number (1's place)
+#counts up in significance (x10), decrementing string index from start index
+def atoir_n( c, n ):
+	accum = 0
+	mult = 1
+	print( "atoir_n d " )
+	for i in range(n) :
+		d = c[n-1-i]
+		if( d >= '0' and d <= '9' ):
+			accum += (ord(d) - b'0'[0])*mult
+		else:
+			break
+		mult *= 10
+		print( " %c acum %i d " % ( d, accum ) )
+	print(" accum %i " % (accum) )
+	return accum
+
+#print( "atoir_n( \" 12\", 3 ) %i\n" % atoir_n( " 12", 3 ) )
+
+
 async def websocketHandler(websocket):
-	async for message in websocket:
-		#print("rcvd msg: %s:%i" % (message, len(message)))
-		if message.startswith('1'):
-			cmd = message[1:17]
-			val = message[17:]
-			print( 'action: ' + cmd + ':' + val + "|")
-			cmds.append( [cmd, val] )
-		elif message == 'status':
-			#print( device.postStatus )
-			await websocket.send( '0' + device.postStatus + str(device.lastStatusTime) )
-		elif message == 'settings':
-			await websocket.send( '1' + device.postSettings + str(device.lastSettingsTime) )
-		elif message == 'image':
-			#print(device.lastImage)
-			await websocket.send( device.lastImage )
+	async for msg in websocket:
+		msgLen = len(msg)
+		if msgLen < 1:
+			return
+		numCmd = ord(msg[0]) - b'0'[0] #ascii character difference to convert digit to int
+		print("websock rcv numCmd: %i msgLen: %i msg: %s" % (numCmd, msgLen, msg))
+		fromDorC = msg[1]
+		if fromDorC == 'd': #from device
+			mIdx = 2
+			datType = msg[mIdx:mIdx+11]
+			devId  = atoir_n(msg[mIdx+11   : mIdx+11+4  ], 4)
+			datLen = atoir_n(msg[mIdx+11+4 : mIdx+11+4+6], 6)
+			mIdx += 11+4+6
+			datStr = msg[mIdx:mIdx+datLen]
+			while mIdx < msgLen:
+				if datType.startswith("Stat"):
+					device.fillValues( datStr ) #read the status data in from device
+					#respond with queued commands
+					outBytes = GetCommandListBytes()
+					await websocket.send( outBytes )
+				if datType.startswith("Set"):
+					device.fillSettings( datStr )
+				if datType.startswith("Image"):
+					device.fillImage( datStr, datLen )
+				mIdx += datLen
+		if msg[1:].startswith('c'): #from client (browser http page)
+			if msg[1:].startswith('1'):
+				cmd = msg[1:17]
+				val = msg[17:]
+				print( 'action: ' + cmd + ':' + val + "|")
+				cmds.append( [cmd, val] )
+			elif msg == 'status':
+				#print( device.postStatus )
+				await websocket.send( '0' + device.postStatus + str(device.lastStatusTime) )
+			elif msg == 'settings':
+				await websocket.send( '1' + device.postSettings + str(device.lastSettingsTime) )
+			elif msg == 'image':
+				#print(device.lastImage)
+				await websocket.send( device.lastImage )
 
 
 class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
@@ -272,17 +345,13 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			self.send_response(200)
 			self.send_header('Content-type', 'text/html')
 			
-			output = io.StringIO()
-			output.write( str(len(cmds)) )
-			for cmd in cmds:
-				output.write( '{:<32}'.format((cmd[0])[:32]) )
-				output.write( '{:<32}'.format((cmd[1])[:32]) )
-			outBytes = output.getvalue().encode('utf-8')
+			outBytes = GetCommandListBytes()
+			
 			self.send_header('Content-Length', len(outBytes))
 			self.end_headers()
 			self.wfile.write( outBytes )
 			#print( output.getvalue() )
-			cmds = [] #should add wait for device to confirm recept of commands, though doing this now for simplicity
+			
 			#self.finish()
 		
 	def log_message(self, format, *args):
