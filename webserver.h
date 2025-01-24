@@ -40,33 +40,35 @@ static esp_err_t index_handler(httpd_req_t *req){
 
 #define STATUS_RESPONSE_LENGTH 80
 void fillStatusString(){
+  //+1's to snprintf lengths because of \0 null terminator always appended
+
 	//fill header
 	lastCsiInfoStr[0] = '1';
 	lastCsiInfoStr[1] = 'd';
-	snprintf( &(lastCsiInfoStr[2]), 11, "Stat" );
-	snprintf( &(lastCsiInfoStr[13]), 4, "%04d", devId );
-	snprintf( &(lastCsiInfoStr[17]), 6, "%06d", STATUS_RESPONSE_LENGTH );
+	snprintf( &(lastCsiInfoStr[2]), 11+1, "Stat" );
+	snprintf( &(lastCsiInfoStr[13]), 4+1, "% 4d", devId );
+	snprintf( &(lastCsiInfoStr[17]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH );
 
 	//fill data
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+0 ]), 3,  "%i\n", alarmArmed);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+3 ]), 2,  "%i\n", (int)lightLedValue);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+5 ]), 5,  "%i\n", magAX);//alarmInit_magSample.X);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+10]), 5,  "%i\n", magAY);//alarmInit_magSample.Y);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+15]), 5,  "%i\n", magAZ);//alarmInit_magSample.Z);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+0 ]), 3+1,  "% 3d", alarmArmed);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+3 ]), 2+1,  "% 2d", (int)lightLedValue);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+5 ]), 5+1,  "% 5i", magAX);//alarmInit_magSample.X);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+10]), 5+1,  "% 5i", magAY);//alarmInit_magSample.Y);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+15]), 5+1,  "% 5i", magAZ);//alarmInit_magSample.Z);
 
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+20]), 5,  "%i\n",servo1Angle);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+25]), 5,  "%i\n",servo2Angle);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+20]), 5+1,  "% 5d",servo1Angle);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+25]), 5+1,  "% 5d",servo2Angle);
 
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+30]), 5,  "%i\n", staRssi);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+35]), 5,  "%i\n", lastTemperature);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+40]), 5,  "%i\n", magX);//compass.magSample.X);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+45]), 5,  "%i\n", magY);//compass.magSample.Y);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+50]), 5,  "%i\n", magZ);//compass.magSample.Z);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+30]), 5+1,  "% 5i", staRssi);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+35]), 5+1,  "% 5d", lastTemperature);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+40]), 5+1,  "% 5i", magX);//compass.magSample.X);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+45]), 5+1,  "% 5i", magY);//compass.magSample.Y);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+50]), 5+1,  "% 5i", magZ);//compass.magSample.Z);
 
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+55]), 10, "%f\n", magHeading);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+65]), 5,  "%i\n", magAlarmDiff);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+70]), 5,  "%i\n", magAlarmTriggered);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+75]), 5,  "%i\n", alarmOutput);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+55]), 10+1, "% 10f", magHeading);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+65]), 5+1,  "% 5i", magAlarmDiff);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+70]), 5+1,  "% 5i", magAlarmTriggered);
+	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+75]), 5+1,  "% 5i", alarmOutput);
 }
 
 #define SETTINGS_RESPONSE_LENGTH 52+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)
@@ -131,6 +133,15 @@ uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
     }
     return 1;
   }
+}
+
+void fillJpegHdr( size_t _jpg_buf_len ){
+	//fill header
+	lastCsiInfoStr[0] = '1';
+	lastCsiInfoStr[1] = 'd';
+	snprintf( &(lastCsiInfoStr[2]), 11+1, "Img" );
+	snprintf( &(lastCsiInfoStr[13]), 4+1, "% 4d", devId );
+	snprintf( &(lastCsiInfoStr[17]), 6+1, "% 6d", _jpg_buf_len );
 }
 
 //ascii to int reverse iteration for n characters
@@ -433,17 +444,20 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 		int httpResponseCode;
 		if( postType == DEV_STATUS ){
 			fillStatusString();
-			httpResponseCode = esp_websocket_client_send_text(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
+			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
 		}else if( postType == DEV_SETTINGS ){
 			fillSettingsString();
-			httpResponseCode = esp_websocket_client_send_text(webSockClient, (const char *)&(lastCsiInfoStr[0]), SETTINGS_RESPONSE_LENGTH, portMAX_DELAY);
+			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), SETTINGS_RESPONSE_LENGTH, portMAX_DELAY);
 		}else if( postType == IMAGE ){
 			size_t _jpg_buf_len = 0;
 			uint8_t * _jpg_buf = NULL;
 			uint8_t jpgBufType = getJpeg( &_jpg_buf, &_jpg_buf_len);
 			if( jpgBufType != 0 ){
 				Serial.print("send img "); Serial.println( _jpg_buf_len );
-				httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
+        fillJpegHdr( _jpg_buf_len );
+        httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
+				httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
+        esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
 				if( jpgBufType == 2 )
 					free(_jpg_buf);
 				else

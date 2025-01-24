@@ -192,7 +192,7 @@
 				val = ''
 				valLen = 0
 			}
-			let sendStr = ("1"+x).padEnd(12)+(valLen.toString()).padStart(4)+val;
+			let sendStr = "1c"+(x).padEnd(11)+"0".padStart(4)+(valLen.toString()).padStart(6)+val;
 			sendWebsocketServerMessage(sendStr);
 			//xhr.send(sendStr);
 			if(x == "ArmAlarm"){
@@ -264,9 +264,13 @@
 			}
 			return strPart;
 		}
+		
+		let td = new TextDecoder();
+		function sFBa(b){
+			return td.decode(b);
+		}
 
 		function DisplaySettings(txt){
-			numStatusRequests = 0;
 		
 			let a = txt;
 			let rL = a.length;
@@ -303,45 +307,28 @@
 			if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
 				return;
 
-			document.getElementById("alarmArmed").innerText		= parseInt(strFromStrRange(a, 0, 3));
-			document.getElementById("light").innerText			= parseInt(strFromStrRange(a, 3, 2));
-			document.getElementById("magArmX").innerText		= parseInt(strFromStrRange(a, 5, 5));
-			document.getElementById("magArmY").innerText		= parseInt(strFromStrRange(a, 10, 5));
-			document.getElementById("magArmZ").innerText		= parseInt(strFromStrRange(a, 15, 5));
+			document.getElementById("alarmArmed").innerText		= parseInt(sFBa(a.slice(0, 3)));
+			document.getElementById("light").innerText			= parseInt(sFBa(a.slice(3, 3+2)));
+			document.getElementById("magArmX").innerText		= parseInt(sFBa(a.slice(5, 5+5)));
+			document.getElementById("magArmY").innerText		= parseInt(sFBa(a.slice(10, 10+5)));
+			document.getElementById("magArmZ").innerText		= parseInt(sFBa(a.slice(15, 15+5)));
 
-			document.getElementById("servo1").innerText			= parseInt(strFromStrRange(a, 20, 5));
-			document.getElementById("servo2").innerText			= parseInt(strFromStrRange(a, 25, 5));
+			document.getElementById("servo1").innerText			= parseInt(sFBa(a.slice(20, 20+5)));
+			document.getElementById("servo2").innerText			= parseInt(sFBa(a.slice(25, 25+5)));
 
-			document.getElementById("rssi").innerText			= parseInt(strFromStrRange(a, 30, 5));
-			document.getElementById("temp").innerText			= parseInt(strFromStrRange(a, 35, 5));
-			document.getElementById("magX").innerText			= parseInt(strFromStrRange(a, 40, 5));
-			document.getElementById("magY").innerText			= parseInt(strFromStrRange(a, 45, 5));
-			document.getElementById("magZ").innerText			= parseInt(strFromStrRange(a, 55, 5));
+			document.getElementById("rssi").innerText			= parseInt(sFBa(a.slice(30, 30+5)));
+			document.getElementById("temp").innerText			= parseInt(sFBa(a.slice(35, 35+5)));
+			document.getElementById("magX").innerText			= parseInt(sFBa(a.slice(40, 40+5)));
+			document.getElementById("magY").innerText			= parseInt(sFBa(a.slice(45, 45+5)));
+			document.getElementById("magZ").innerText			= parseInt(sFBa(a.slice(55, 55+5)));
 
-			document.getElementById("magHeading").innerText		= parseFloat(strFromStrRange(a, 60, 5));
-			document.getElementById("magAlarmDiff").innerText	= parseInt(strFromStrRange(a, 65, 5));
-			document.getElementById("magAlarmTrgr").innerText	= parseInt(strFromStrRange(a, 70, 5));
-			document.getElementById("alarmOutput").innerText	= parseInt(strFromStrRange(a, 75, 5));
+			document.getElementById("magHeading").innerText		= parseFloat(sFBa(a.slice(60, 60+5)));
+			document.getElementById("magAlarmDiff").innerText	= parseInt(sFBa(a.slice(65, 65+5)));
+			document.getElementById("magAlarmTrgr").innerText	= parseInt(sFBa(a.slice(70, 70+5)));
+			document.getElementById("alarmOutput").innerText	= parseInt(sFBa(a.slice(75, 75+5)));
 	
 		}
 		
-		
-		
-		const NetworkResponseTypes = {
-			status		: 0,
-			settings	: 1,
-			image 		: 2
-		};
-		function IntToNetworkResponse(i){
-			switch(i){
-				case '0':
-					return NetworkResponseTypes.status;
-				case '1':
-					return NetworkResponseTypes.settings;
-				case '2':
-					return NetworkResponseTypes.image;
-			}
-		}
 		
 		
 		let lastNetworkUpdateTime = 0;
@@ -389,30 +376,24 @@
 						return;
 					//console.log("socketInstance.onmessage " + response);
 
-					let svrResponseType = 2;
-					let responseStr = ''
-					if( typeof( response ) == 'string' ){
-						svrResponseType = IntToNetworkResponse(response[0]);
-						responseStr = response.slice(1);
-					}
-
-					let i = 1;
-					switch( svrResponseType ){
-						case NetworkResponseTypes.status:
-							DisplayStatus( responseStr );
-							break;
-						case NetworkResponseTypes.settings:
-							DisplaySettings( responseStr );
-							break;
-						case NetworkResponseTypes.image:
-							//https://gist.github.com/candycode/f18ae1767b2b0aba568e
-							let arrayBufferView = new Uint8Array( response );
-							let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
-							let urlCreator = window.URL || window.webkitURL;
-							let imageUrl = urlCreator.createObjectURL( blob );
-							let img = document.querySelector( "#photo" );
-							img.src = imageUrl;//xhr.response;
-							camRot90(rot90);
+					let respType = new TextDecoder().decode( response.slice(2,12) );
+					let respLen = Number.parseInt(new TextDecoder().decode( response.slice(23-6,23) ));
+					let resp = response.slice(23,23+respLen);
+					let respStr = new TextDecoder().decode( resp );
+					console.log( respStr );
+					if( respType.startsWith("Stat") ){
+						DisplayStatus( resp );
+					}else if( respType.startsWith("Set") ){
+						DisplaySettings( resp );
+					}else if( respType.startsWith("Image") ){
+						//https://gist.github.com/candycode/f18ae1767b2b0aba568e
+						let arrayBufferView = new Uint8Array( resp );
+						let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
+						let urlCreator = window.URL || window.webkitURL;
+						let imageUrl = urlCreator.createObjectURL( blob );
+						let img = document.querySelector( "#photo" );
+						img.src = imageUrl;//xhr.response;
+						camRot90(rot90);
 					}
 					
 				}
@@ -452,11 +433,12 @@
 				
 				
 				if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
-					sendWebsocketServerMessage("settings");
+					sendWebsocketServerMessage("1csettings      0     0");
+					numStatusRequests = 0;
 				}else{
 					timeRequestedStatus = new Date()
-					sendWebsocketServerMessage("status");
-					sendWebsocketServerMessage("image");
+					sendWebsocketServerMessage("1cstatus        0     0");
+					sendWebsocketServerMessage("1cimage         0     0");
 				}
 				
 				inProgressRequest = true;
@@ -469,7 +451,7 @@
 			}
 		}
 		
-		sendWebsocketServerMessage("hi testing connection from browser to server");
+		//sendWebsocketServerMessage("hi testing connection from browser to server");
 
 		fillStoredSSIDsTable();
 		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
