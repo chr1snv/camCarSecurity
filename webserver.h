@@ -22,7 +22,12 @@ httpd_handle_t camera_httpd = NULL;
 //data is sent over the websocket to the cloud server in the format
 //|numData(1) | 'd'(1) |dataTypeStr (11) | deviceId(4) | dataLen(6) | data
 //with numbers start padded/lsb aligned with end of allocated area
-#define WEB_SEND_HDR_LEN 23
+#define DAT_NUM_DAT_LEN 1
+#define DAT_FROM_LEN 1
+#define DAT_TYPE_LEN 11
+#define DAT_DEV_ID_LEN 4
+#define DAT_DAT_LEN 6
+#define WEB_SEND_HDR_LEN DAT_NUM_DAT_LEN+DAT_FROM_LEN+DAT_TYPE_LEN+DAT_DEV_ID_LEN+DAT_DAT_LEN //23
 
 uint16_t serverUrlLen = 0;
 uint16_t serverCertLen = 0;
@@ -69,6 +74,14 @@ void fillStatusString(){
 	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+65]), 5+1,  "% 5i", magAlarmDiff);
 	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+70]), 5+1,  "% 5i", magAlarmTriggered);
 	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+75]), 5+1,  "% 5i", alarmOutput);
+	//memset() //snprintf will set a \0 at end so don't need to memset
+}
+
+void ObfsucatePass(char *str, uint8_t len){
+  for(uint16_t i = 0; i < len; ++i){
+    if(str[i] != '\0')
+      str[i] = '*';
+  }
 }
 
 #define SETTINGS_RESPONSE_LENGTH 52+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)
@@ -81,19 +94,34 @@ void fillSettingsString(){
 	snprintf( &(lastCsiInfoStr[5]),  5, "%i\n", s->status.quality);
 	snprintf( &(lastCsiInfoStr[10]), 5, "%i\n", s->status.framesize);
 	snprintf( &(lastCsiInfoStr[15]), 5, "%i\n", txPower);
-
+	Serial.println("fSS storedVals");
 	preferences.begin("storedVals", true);
-		snprintf( &(lastCsiInfoStr[20]), 32, "%s\n", preferences.getString("svrUrl").c_str() );
+		String svrUrlStr = preferences.getString("svrUrl");
+		uint16_t svrUrlStrLen = min( (uint16_t)NETWORK_NAME_LEN, (uint16_t)svrUrlStr.length() );
+		memcpy( &(lastCsiInfoStr[20]), svrUrlStr.c_str(), svrUrlStrLen );
+		memset( &(lastCsiInfoStr[20]) + svrUrlStrLen,
+		' ', NETWORK_NAME_LEN - svrUrlStrLen );
+		//Serial.println("svrUrl");
 		uint8_t storedNetworksSettingsStrStart = 52;
 		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
-		snprintf(storedPrefKey, 8, "net%i", i );
-		snprintf( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2)*i]),
-				NETWORK_NAME_LEN, "%s\n", preferences.getString(storedPrefKey).c_str() );
-		snprintf(storedPrefKey, 8, "pass%i", i );
-		snprintf( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2)*i]),
-				NETWORK_NAME_LEN, "%s\n", preferences.getString(storedPrefKey).c_str() );
+			char networkInfo[NETWORK_NAME_LEN];
+      snprintf(storedPrefKey, 8,"net%i", i );
+      memset( networkInfo, '\0', NETWORK_NAME_LEN );
+			preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
+			memcpy( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2*i)]),
+				networkInfo, NETWORK_NAME_LEN );
+			//Serial.print("net");Serial.println(i);
+			snprintf(storedPrefKey, 8,"pass%i", i );
+      memset( networkInfo, '\0', NETWORK_NAME_LEN );
+			preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
+			ObfsucatePass(networkInfo, NETWORK_NAME_LEN);
+			memcpy( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*((2*i)+1))]),
+				networkInfo, NETWORK_NAME_LEN );
+			//Serial.print("pass");Serial.println(i);
 		}
 	preferences.end();
+	memset( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*(2*MAX_STORED_NETWORKS))]),
+			'\0', 1 ); //prevent segfault reboot from missing \0
 }
 
 static esp_err_t settings_handler(httpd_req_t *req){
@@ -103,7 +131,19 @@ static esp_err_t settings_handler(httpd_req_t *req){
 	return httpd_resp_send(req, lastCsiInfoStr, SETTINGS_RESPONSE_LENGTH);
 }
 
+uint8_t jpgBufType;
 camera_fb_t * fb;
+size_t _jpg_buf_len = 0;
+uint8_t * _jpg_buf = NULL;
+void freeJpegBuf( ){
+  if( jpgBufType == 2 )
+      free( _jpg_buf );
+  else if( jpgBufType == 1 )
+    esp_camera_fb_return( fb );
+  jpgBufType = 0;
+}
+
+
 uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
   //after done with result need to free allocated memory
   //if returns 1 call "esp_camera_fb_return( fb )" 
@@ -121,21 +161,25 @@ uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
         fb = NULL;
         if(!jpeg_converted){
           Serial.println("JPEG compres failed");
+          jpgBufType = 0;
           return 0;
         }else{
+          jpgBufType = 2;
           return 2;
         }
       } else {
         _jpg_buf_len[0] = fb->len;
         _jpg_buf[0] = fb->buf;
+        jpgBufType = 1;
         return 1;
       }
     }
+    jpgBufType = 1;
     return 1;
   }
 }
 
-void fillJpegHdr( size_t _jpg_buf_len ){
+void fillJpegSendHdr( size_t _jpg_buf_len ){
 	//fill header
 	lastCsiInfoStr[0] = '1';
 	lastCsiInfoStr[1] = 'd';
@@ -150,7 +194,7 @@ void fillJpegHdr( size_t _jpg_buf_len ){
 uint16_t atoir_n( const char * c, uint8_t n ){
 	uint16_t accum = 0;
 	uint16_t mult = 1;
-	Serial.print( "atoir_n d ");
+	//Serial.print( "atoir_n d ");
 	for( uint8_t i = 0; i < n; ++i ){
 		char d = c[-i];
 		if( d >= '0' && d <= '9' )
@@ -158,26 +202,28 @@ uint16_t atoir_n( const char * c, uint8_t n ){
 		else
 			break;
 		mult *= 10;
-		Serial.print( d ); Serial.print(" acum ");Serial.print(accum);Serial.print(" d ");
+		//Serial.print( d ); Serial.print(" acum ");Serial.print(accum);Serial.print(" d ");
 	}
-	Serial.print(" accum ");Serial.println(accum);
+	//Serial.print(" accum ");Serial.println(accum);
 	return accum;
 }
 
-bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
+uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 
-	bool sucessfulyHandledCmd = true;
+	uint8_t sucessfulyHandledCmd = 0;
 
 	//for camera setting changes
 	sensor_t * s = esp_camera_sensor_get();
 
 	if(!strncmp(cmd, "camFlipV", 8)) { //flip the camera vertically
 		s->set_vflip(s, atoi(value));          // 0 = disable , 1 = enable
+		sucessfulyHandledCmd = 1;
 	}
 	else if(!strncmp(cmd, "camFlipH", 8)) { //flip the camera horizontally
 		s->set_hmirror(s, atoi(value));          // 0 = disable , 1 = enable
+		sucessfulyHandledCmd = 2;
 	}
-	else if(!strncmp(cmd, "camResolution", 13)){
+	else if(!strncmp(cmd, "camRes", 6)){
 		if( !strncmp(value, "QVGA", 4) )
 			s->set_framesize(s, FRAMESIZE_QVGA );
 		else if( !strncmp(value, "CIF", 3) )
@@ -186,9 +232,11 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 			s->set_framesize(s, FRAMESIZE_VGA );
 		else if( !strncmp(value, "SVGA", 4) )
 			s->set_framesize(s, FRAMESIZE_SVGA );
+		sucessfulyHandledCmd = 3;
 	}
 	else if(!strncmp(cmd, "camQuality", 10)){
 		s->set_quality(s, atoi(value));
+		sucessfulyHandledCmd = 4;
 	}
 
 	//servo position control
@@ -199,6 +247,7 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		}
 		Serial.println(servo1Angle);
 		Serial.println("Up");
+		sucessfulyHandledCmd = 5;
 	}
 	else if(!strncmp(cmd, "left", 4)) {
 		if(servo2Angle <= 170) {
@@ -207,6 +256,7 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		}
 		Serial.println(servo2Angle);
 		Serial.println("Left");
+		sucessfulyHandledCmd = 6;
 	}
 	else if(!strncmp(cmd, "right", 5)) {
 		if(servo2Angle >= 10) {
@@ -215,6 +265,7 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		}
 		Serial.println(servo2Angle);
 		Serial.println("Right");
+		sucessfulyHandledCmd = 7;
 	}
 	else if(!strncmp(cmd, "down", 4)) {
 		if(servo1Angle >= 10) {
@@ -223,6 +274,7 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		}
 		Serial.println(servo1Angle);
 		Serial.println("Down");
+		sucessfulyHandledCmd = 8;
 	}
 	else if(!strncmp(cmd, "center", 6)) {
 		servo1Angle = 90;
@@ -230,29 +282,35 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		servo1.write(servo1Angle);
 		servo2.write(servo2Angle);
 		
-		Serial.print(servo1Angle);
-		Serial.println(servo2Angle);
-		Serial.println("center");
+		//Serial.print(servo1Angle);
+		//Serial.println(servo2Angle);
+		//Serial.println("center");
+		sucessfulyHandledCmd = 9;
 	}
 	else if(!strncmp(cmd, "Light", 5)){
 		lightLedValue = !lightLedValue;
 		digitalWrite(LightLEDPin, lightLedValue);
 		Serial.print("Light");
 		Serial.println(lightLedValue);
+		sucessfulyHandledCmd = 10;
 	}
 	else if(!strncmp(cmd, "ArmAlarm", 8)){
 		ArmAlarm(true);
 		Serial.println("ArmAlarm");
+		sucessfulyHandledCmd = 11;
 	}
 	else if(!strncmp(cmd, "DisarmAlarm", 11)){
 		ArmAlarm(false);
 		Serial.println("DisarmAlarm");
+		sucessfulyHandledCmd = 12;
 	}
-	else if(!strncmp(cmd, "magAlrmThrsh", 12)){
+	else if(!strncmp(cmd, "magAlrThrsh", 11)){
 		MAG_ALARM_DELTA_THRESHOLD = atoir_n(&value[valLen-1], valLen);
+		sucessfulyHandledCmd = 13;
 	}
 	else if(!strncmp(cmd, "txPower", 7)){
 		MAG_ALARM_DELTA_THRESHOLD = atoir_n(&value[valLen-1], valLen);
+		sucessfulyHandledCmd = 14;
 	}
 	else if(!strncmp(cmd, "svrUrl", 6)){
 		preferences.begin("storedVals", false);
@@ -260,6 +318,7 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 			preferences.putBytes("svrUrl", value, storLen );
 			Serial.print(" storing svrUrl len ");Serial.println(storLen);
 		preferences.end();
+		sucessfulyHandledCmd = 15;
 	}
 	else if(!strncmp(cmd, "svrCertLen", 10)){
 		preferences.begin("storedVals", false);
@@ -267,6 +326,7 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 			preferences.putInt( "svrCertLen", certLen );
 			Serial.print("storing svrCert len "); Serial.println(certLen);
 		preferences.end();
+		sucessfulyHandledCmd = 16;
 	}
 	else if(!strncmp(cmd, "svrCert", 7)){
 		uint8_t certNum = cmd[7] - '0';
@@ -275,27 +335,31 @@ bool doCommand( const char * cmd, uint16_t valLen, const char * value ){
 			preferences.putBytes("svrCert"+certNum, value, storLen );
 			Serial.print("storing svrCert "); Serial.print(certNum); Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
+		sucessfulyHandledCmd = 17;
 	}
-	else if(!strncmp(cmd, "net", 4)){
-		uint8_t netNum = cmd[4] -'0';
+	else if(!strncmp(cmd, "net", 3)){
+		uint8_t netNum = cmd[3] -'0';
 		preferences.begin("storedVals", false);
-			sprintf( storedPrefKey, "net%i", netNum );
-			char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, value, NETWORK_NAME_LEN );
-			preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
-			Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
+      uint16_t len = min( valLen, (uint16_t)NETWORK_NAME_LEN );
+			snprintf( storedPrefKey, 8, "net%i", netNum );
+			preferences.putBytes( storedPrefKey, value, len );
+			Serial.print( "storing at |" ); Serial.print( storedPrefKey ); 
+			Serial.print( "| |" ); Serial.print( value );
+			Serial.print("| ");Serial.println(len);
 		preferences.end();
+		sucessfulyHandledCmd = 18;
 	}
 	else if(!strncmp(cmd, "pass", 4)){
 		uint8_t netNum = cmd[4] -'0';
 		preferences.begin("storedVals", false);
-			sprintf( storedPrefKey, "pass%i", netNum );
-			char cStrToStore[NETWORK_NAME_LEN]; strlcpy( cStrToStore, &(value[NETWORK_NAME_LEN]), NETWORK_NAME_LEN );
-			preferences.putBytes( storedPrefKey, cStrToStore, NETWORK_NAME_LEN );
-			Serial.print( "storing at " ); Serial.println( storedPrefKey ); Serial.print( " " ); Serial.println( String(cStrToStore) );
+      uint16_t len = min( valLen, (uint16_t)NETWORK_NAME_LEN );
+			snprintf( storedPrefKey, 8, "pass%i", netNum );
+			preferences.putBytes( storedPrefKey, value, len );
+			Serial.print( "storing at |" ); Serial.print( storedPrefKey ); 
+			Serial.print( "| |" ); Serial.print( value );
+			Serial.print("| ");Serial.println(len);
 		preferences.end();
-	}
-	else {
-		sucessfulyHandledCmd = -1;
+		sucessfulyHandledCmd = 19;
 	}
 
 	return sucessfulyHandledCmd;
@@ -337,10 +401,14 @@ static esp_err_t cmd_post_handler( httpd_req_t * req ){
 		return ESP_FAIL;
 	}
 
-	uint16_t valLen = atoir_n(&content[CMD_LEN-1], 4);
-	if( !doCommand( &content[0], valLen, &content[CMD_LEN] ) )
-		return httpd_resp_send_500(req); //did not understand or was able to handle the requested cmd
+	Serial.print("recvd command ");
+	Serial.println( content );
 
+	uint16_t valLen = atoir_n(&content[CMD_LEN-1], 4);
+	uint8_t doCmdRes = doCommand( &content[0], valLen, &content[CMD_LEN] );
+	if( doCmdRes < 1 )
+		return httpd_resp_send_500(req); //did not understand or was not able to handle the requested cmd
+	Serial.print("doCmdRes " ); Serial.print(doCmdRes);
 	const char resp[] = "cmd recieved";
 	httpd_resp_send( req, resp, HTTPD_RESP_USE_STRLEN );
 	return ESP_OK;
@@ -356,10 +424,7 @@ bool isAUrl(String str){
 			return true;
 }
 
-//one loop is 1/10th of a second ( from delay(100); in wifiCamCarSecuritySystem.ino )
-#define INACTIVE_COMMAND_LOOP_INTERVAL 10
-#define NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND 100
-int activelyCommanded = 0;
+
 //not reccomended, though to bypass ESP_ERR_MBEDTLS_SSL_SETUP_FAILED
 //https://github.com/espressif/esp-idf/issues/13109
 //https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig-reference.html#config-esp-tls-insecure
@@ -378,20 +443,10 @@ typedef enum{
 uint16_t mainLoopsSinceWebSockStartedConnecting = 0;
 void PostAndFetchDataFromCloudServer(PostType postType){
 
-	if( postType == DEV_STATUS )
-		--activelyCommanded;
-
-	if( activelyCommanded <= 0 ){ //if it's been NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND
-		if( activelyCommanded < -INACTIVE_COMMAND_LOOP_INTERVAL )
-			activelyCommanded = 0; //only send after interval num loops
-		else
-			return; //skip sending for INACTIVE_COMMAND_LOOP_INTERVAL loops
-	}
-
 	if( webSockClient == NULL || !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 10000 ){
 		mainLoopsSinceWebSockStartedConnecting = 0;
 
-		
+
 		preferences.begin("storedVals", true);
 			serverUrlLen = preferences.getBytesLength("svrUrl");
 			preferences.getBytes("svrUrl", serverUrl, serverUrlLen);
@@ -405,7 +460,7 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 
 			//https://docs.espressif.com/projects/esp-protocols/esp_websocket_client/docs/latest/index.html
 			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.print( "|" ); Serial.println( serverUrlLen );
-			Serial.print( "Cert Len "); 
+			Serial.print( "Cert Len ");
 			//Serial.print( serverCert );
 			Serial.print("|"); Serial.println( serverCertLen );
 			const esp_websocket_client_config_t ws_cfg = {
@@ -451,17 +506,14 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 		}else if( postType == IMAGE ){
 			size_t _jpg_buf_len = 0;
 			uint8_t * _jpg_buf = NULL;
-			uint8_t jpgBufType = getJpeg( &_jpg_buf, &_jpg_buf_len);
-			if( jpgBufType != 0 ){
+			if( getJpeg( &_jpg_buf, &_jpg_buf_len) != 0 ){
 				Serial.print("send img "); Serial.println( _jpg_buf_len );
-        fillJpegHdr( _jpg_buf_len );
+        fillJpegSendHdr( _jpg_buf_len );
         httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
+        Serial.print("jpgHdr Resp ");Serial.println(httpResponseCode);
 				httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
         esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
-				if( jpgBufType == 2 )
-					free(_jpg_buf);
-				else
-					esp_camera_fb_return(fb);
+				freeJpegBuf();
 			}
 		}
 
@@ -502,5 +554,6 @@ void startCameraServer(){
 		httpd_register_uri_handler(camera_httpd, &index_uri);
 		httpd_register_uri_handler(camera_httpd, &cmd_uri);
 		httpd_register_uri_handler(camera_httpd, &settings_uri);
+    Serial.println("Local webpage ready! ");
 	}
 }

@@ -6,8 +6,9 @@
 
 
 //created AccessPoint network settings
-char APssid[10] = {0,0,0,0,0,0,0,0,0,0};
-char APpassword[10] = {0,0,0,0,0,0,0,0,0,0};
+#define SSIDPASSLEN 9
+char APssid[SSIDPASSLEN+1] = {0,0,0,0,0,0,0,0,0,0}; //+1 for string null terminator '\0'
+char APpassword[SSIDPASSLEN+1] = {0,0,0,0,0,0,0,0,0,0};
 #define APhideSSid   1 //1 hide ssid
 #define APmaxClients 4 //1-4
 
@@ -266,8 +267,19 @@ uint8_t wifi_scanNetworks(){
 
 void fillStringWithRandomASCII(char * buf, size_t len){
 	esp_fill_random(buf, len);
-	for( size_t i = 0; i < len; ++i )
-		buf[i] = (buf[i]  - '0') % ('Z'-'0');
+  char numRange   = ('9' - '0');
+  char upperRange = ('Z' - 'A');
+  char lowerRange = ('z' - 'a');
+  char range = numRange + upperRange + lowerRange;
+	for( size_t i = 0; i < len; ++i ){
+    char c = buf[i] % range;
+    if( c <= numRange )
+      buf[i] = c + '0';
+    else if ( c <= numRange + upperRange )
+      buf[i] = (c - numRange) + 'A';
+    else
+      buf[i] = (c - (numRange + upperRange) ) + 'a';
+  }
 }
 
 #define WIFI_CONNECT_MAX_SECONDS_TO_WAIT 7
@@ -285,22 +297,27 @@ void connectWiFi(uint8_t channelToCreateAp){
 	Serial.println("attempting to join stored network");
 	preferences.begin("storedVals", true); //(true read only), false -> read write mode 
 	bool joinedNetwork = false;
-	String storedNetwork;
-	String storedPassword;
+	char storedNetwork[32];
+	char storedPassword[32];
 	for( uint8_t num = 0; ((num < MAX_STORED_NETWORKS) && (!joinedNetwork)); num++ ){
 		sprintf( storedPrefKey, "net%i", num );
 		if(!preferences.isKey(storedPrefKey) )
 			continue; //no stored value for key
 		Serial.print( "getting pref Key |" ); Serial.println( storedPrefKey );
-		storedNetwork = preferences.getString( storedPrefKey );
+    memset( storedNetwork, '\0', NETWORK_NAME_LEN );
+		preferences.getBytes( storedPrefKey, &storedNetwork[0], NETWORK_NAME_LEN );
 		sprintf( storedPrefKey, "pass%i", num );
-		storedPassword = preferences.getString( storedPrefKey );
-		Serial.println( "stored network |" + storedNetwork + "| storedPassword |" + storedPassword + "|" );
+    memset( storedPassword, '\0', NETWORK_NAME_LEN );
+		preferences.getBytes( storedPrefKey, &storedPassword[0], NETWORK_NAME_LEN );
+		Serial.print( "stored network |");
+    Serial.print( storedNetwork ); Serial.println( "|" );
+    Serial.print( " storedPassword |" );
+    Serial.print( storedPassword ); Serial.println( "|" );
 		for( uint8_t i = 0; ((i < numFoundNetworks) && (!joinedNetwork)); ++i ){
 			foundNetworkLen = strlcpy( foundNetwork, &(foundNetworks[NETWORK_NAME_LEN*i]),  NETWORK_NAME_LEN );
 			Serial.print("found network |"); Serial.print(foundNetwork); Serial.println( "|" );
 			//foundN
-			if( strncmp( &(foundNetwork[0]), storedNetwork.c_str(), NETWORK_NAME_LEN ) == 0 ){
+			if( strncmp( &(foundNetwork[0]), storedNetwork, NETWORK_NAME_LEN ) == 0 ){
 				Serial.print("JoiningNetwork: "); Serial.println( storedNetwork );
 				WiFi.begin(storedNetwork, storedPassword);
 				uint8_t iterations;
@@ -323,8 +340,8 @@ void connectWiFi(uint8_t channelToCreateAp){
 		Serial.println("Didn't find network with stored password");
 		//esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B);
 		//esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
-		fillStringWithRandomASCII(APssid,     10);
-		fillStringWithRandomASCII(APpassword, 10);
+		fillStringWithRandomASCII(APssid,     SSIDPASSLEN);
+		fillStringWithRandomASCII(APpassword, SSIDPASSLEN);
 		Serial.print("creating wifi ap with ssid "); Serial.print(APssid); Serial.print(" password "); Serial.println(APpassword);
 		WiFi.softAP(APssid, APpassword, channelToCreateAp, APhideSSid, APmaxClients);
 	}else{

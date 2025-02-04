@@ -15,30 +15,26 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 		</table>
 		<br/>
 		<table>
-			<tr><th>Server Url</th><td id="svrUrl"></td></tr>
+			<tr><th>Known Wifi Networks</th></tr>
 		</table>
 		<table id="storedSsidsTable">
 		</table>
 		<table>
 			<tr>
+        <th>Server Url</th>
 				<td><input id="svrUrlVal" type="text"></input></td>
 				<td><button onclick="sendSvrUrl()">Set Cloud Server Url and cert (wss://<ip or url>:port)</button></td>
 			</tr>
+      </table>
+      <table>
 			<tr>
 			<td><textarea id="svrCert" cols="80" rows="10"></textarea></td>
-			</tr>
-		</table>
-		<table>
-			<tr>
-				<td><input id="ssid" type="text"></input></td>
-				<td><input id="pass" type="text"></input></td>
-				<td><button onclick="sendWifi_SSID_Pass(0)">Add SSID and Password</button></td>
 			</tr>
 		</table>
 	<script>
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
-		function sendCmd(x, val, valLen=0, sendCmpCb=none) {
+		function sendCmd(x, val, valLen=0, sendCmpCb) {
 			if( val == undefined ){
 				val = '';
 				valLen = 0;
@@ -49,7 +45,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 			xhr.onreadystatechange = function(){
 				if(xhr.readyState == 4){
 					//if(xhr.status == 200 || xhr.status == 0){
-						sendCmpCb(); //callback
+            if( sendCmpCb != undefined )
+						  sendCmpCb(); //callback
 					//}
 				}
 			}
@@ -63,6 +60,19 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 				document.getElementById("disarmAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 			}
 		}
+
+    function requestSettings(){
+      let xhr = new XMLHttpRequest();
+			xhr.onreadystatechange = function(){
+				if(xhr.readyState == 4){
+					//if(xhr.status == 200 || xhr.status == 0){
+		        fillStoredSSIDsTable(xhr.response); //callback
+					//}
+				}
+			}
+			xhr.open("GET", "/settings", true);
+      xhr.send();
+    }
 
 		function sendTxPower(){ sendCmd("txPower", document.getElementById("txPowerNum").value ); }
 		function sendSvrUrl(cbItr=0){ 
@@ -99,37 +109,47 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 		}
 
 		function sendWifi_SSID_Pass(n){ 
-			sendCmd("net"+n, document.getElementById("net"+n).value.padEnd(32) );
-			sendCmd("pass"+n, document.getElementById("pass"+n).value.padEnd(32) );
+      let nameStr = document.getElementById("net"+n).value;
+			sendCmd("net"+n, nameStr.padEnd(32), nameStr.length );
+			let passStr = document.getElementById("pass"+n).value;
+      sendCmd("pass"+n, passStr.padEnd(32), passStr.length );
 		}
 
 		const MAX_STORED_NETWORKS = 10;
-		function fillStoredSSIDsTable(){
+    const SETTINGS_NET0_IDX = 52;
+    const NETWORK_NAME_LENGTH = 32;
+		function fillStoredSSIDsTable(settingsStr){
 			let ssidsTable = document.getElementById("storedSsidsTable");
 
 			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
 				let ssidTr = "\
 				<tr>\
 				<th>Net"+i+"</th>\
-				<td><input id='net"+i+"' type='text'></input></td>\
+				<td><input id='net"+i+"' type='text' value='"+ 
+        strFromStrRange(settingsStr, SETTINGS_NET0_IDX+NETWORK_NAME_LENGTH*2*i, NETWORK_NAME_LENGTH )
+        + "'></input></td>\
 				<th>Pass"+i+"</th>\
-				<td><input id='pass"+i+"' type='text'></input></td>\
+				<td><input id='pass"+i+"' type='text' value='" +
+        strFromStrRange(settingsStr, SETTINGS_NET0_IDX+NETWORK_NAME_LENGTH*(2*i+1), NETWORK_NAME_LENGTH )
+        + "'></input></td>\
 				<td><button onClick=\"sendWifi_SSID_Pass("+i+")\">Set</button></td>\
-				<td><button onClick=\"clearWifi_SSID_Pass("+i+")\">Clear</button></td>\
 				</tr>\
 				";
 				ssidsTable.innerHTML += ssidTr;
 			}
 		}
 
-		function strFromStrRange(combinedStr, strt, lenDel){
+		function strFromStrRange(combinedStr, strt, maxLen){
 			let strPart = "";
-			for( let i = strt; i < strt+lenDel; ++i)
+			for( let i = strt; i < strt+maxLen; ++i){
+        if( combinedStr[i] == '\0' )
+          break;
 				strPart += combinedStr[i];
+      }
 			return strPart;
 		}
 
-		fillStoredSSIDsTable();
+    requestSettings();
 	</script>
 	</body>
 </html>

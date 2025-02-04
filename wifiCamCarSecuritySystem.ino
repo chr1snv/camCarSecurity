@@ -44,8 +44,8 @@ bool lightLedValue = false;
 bool alarmArmed = false;
 bool alarmOutput = false;
 void UpdateAlarmOutput(bool on){
-  alarmOutput = on;
-  digitalWrite(ALARM_OUTPUT_PIN, LOW);
+	alarmOutput = on;
+	digitalWrite(ALARM_OUTPUT_PIN, LOW);
 }
 
 #include <ESP32Servo.h>
@@ -62,112 +62,140 @@ int servo2Angle = 90;
 
 
 void ArmAlarm(bool enable){
-  if(enable){
-    mag_alarm_init();
-  }
-  UpdateAlarmOutput( false );
-  alarmArmed = enable;
+	if(enable){
+		mag_alarm_init();
+	}
+	UpdateAlarmOutput( false );
+	alarmArmed = enable;
 }
+
+//one loop is 1/10th of a second ( from delay(100); in wifiCamCarSecuritySystem.ino )
+#define INACTIVE_COMMAND_LOOP_INTERVAL 10
+#define NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND 100
+int activelyCommanded = 0;
+uint16_t connectionAttempts = 0;
 
 #include "wifiConnection.h"
 #include "webserver.h"
 
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 
-  //init servos
-  servo1.setPeriodHertz(50);    // standard 50 hz servo
-  servo2.setPeriodHertz(50);    // standard 50 hz servo
-  servo1.attach( SERVO_1 ); //defaults to 500, 2500 microseconds //, 1000, 2000);
-  servo2.attach( SERVO_2 ); //, 1000, 2000);
-  servo1.write(servo1Angle);
-  servo2.write(servo2Angle);
+	//init servos
+	servo1.setPeriodHertz(50);    // standard 50 hz servo
+	servo2.setPeriodHertz(50);    // standard 50 hz servo
+	servo1.attach( SERVO_1 ); //defaults to 500, 2500 microseconds //, 1000, 2000);
+	servo2.attach( SERVO_2 ); //, 1000, 2000);
+	servo1.write(servo1Angle);
+	servo2.write(servo2Angle);
 
-  //init lights
-  pinMode(LightLEDPin, OUTPUT);
-  pinMode(redLEDPin, OUTPUT);
-  digitalWrite(redLEDPin, LOW);
+	//init lights
+	pinMode(LightLEDPin, OUTPUT);
+	pinMode(redLEDPin, OUTPUT);
+	digitalWrite(redLEDPin, LOW);
 
-  //initalize sensor communications
-  ori_init();
-  temp_init();
-  camera_init();
+	//initalize sensor communications
+	ori_init();
+	temp_init();
+	camera_init();
 
-  //init serial ouput
-  Serial.begin(115200);
-  Serial.setDebugOutput(false);
+	//init serial ouput
+	Serial.begin(115200);
+	Serial.setDebugOutput(false);
 
-  //print system info
-  Serial.print("Total heap: ");
-  Serial.println(ESP.getHeapSize());
-  Serial.print("Free heap: ");
-  Serial.println(ESP.getFreeHeap());
-  Serial.print("Total PSRAM: ");  //psram is spi connected ram
-  Serial.println( ESP.getPsramSize());
-  Serial.print("Free PSRAM: ");
-  Serial.println(ESP.getFreePsram());
+	//print system info
+	Serial.print("Total heap: ");
+	Serial.println(ESP.getHeapSize());
+	Serial.print("Free heap: ");
+	Serial.println(ESP.getFreeHeap());
+	Serial.print("Total PSRAM: ");  //psram is spi connected ram
+	Serial.println( ESP.getPsramSize());
+	Serial.print("Free PSRAM: ");
+	Serial.println(ESP.getFreePsram());
 
-  //turn on status led
-  digitalWrite(redLEDPin, HIGH);
+	//turn on status led
+	digitalWrite(redLEDPin, HIGH);
 
-  ArmAlarm(false); //set the siren output low
+	ArmAlarm(false); //set the siren output low
 
-  //esp_wifi_init();
-  connectWiFi(wifi_scanNetworks());
-  
-  // Start local web server (should only start if can't connect to wifi or cloud server)
-  //startCameraServer();
+	//esp_wifi_init();
+	connectWiFi(wifi_scanNetworks());
 
-  Serial.println("Local webpage ready! ");
-  if( APssid[0] != 0){ //if local ap mode (couldn't find network)
-    Serial.print("http://");
-    Serial.print( WiFi.softAPIP() );
-    Serial.print( " on ");
-    Serial.println( APssid );
-  }else{ //if joined wifi network as client station
-    Serial.print( "http://" );
-    Serial.print( WiFi.localIP() );
-    Serial.print( " on " );
-    Serial.println( foundNetwork );
-  }
+	if( APssid[0] != 0){ //if local ap mode (couldn't find network)
+		// Start local web server (should only start if can't connect to wifi or cloud server)
+		startCameraServer();
+		Serial.print("http://");
+		Serial.print( WiFi.softAPIP() );
+		Serial.print( " on ");
+		Serial.println( APssid );
+	}else{ //if joined wifi network as client station
+		Serial.print( "local IP " );
+		Serial.print( WiFi.localIP() );
+		Serial.print( " on " );
+		Serial.println( foundNetwork );
+	}
 }
 
 #define PRINT_PER_LINE 10
 uint8_t conPrints = PRINT_PER_LINE;
 void loop() {
-  if(WiFi.status() != WL_CONNECTED){ //print a dot while not connected to an ap for uplink
-    Serial.print(".");
-  }
-  uint8_t sNum = WiFi.softAPgetStationNum(); //print the number of connected clients (other esp32's)
-  Serial.print(sNum);
+	
+	if(--conPrints < 1){
+		conPrints = PRINT_PER_LINE;
+		uint8_t sNum = WiFi.softAPgetStationNum(); //print the number of connected clients (other esp32's)
+		Serial.print(sNum);
+		Serial.println("");
+		Serial.print("mainLoopsSinceWebSockStartedConnecting");Serial.println(mainLoopsSinceWebSockStartedConnecting);
+		if(mainLoopsSinceWebSockStartedConnecting > 500 ){
+			
+			if( camera_httpd == NULL )
+				startCameraServer();
+			if( camera_httpd != NULL ){
+			Serial.print("server at http://");
+			Serial.print( WiFi.localIP() );
+			Serial.print( " on " );
+			Serial.println( foundNetwork );
+		}
+	}
+	}
 
-  if(--conPrints < 1){
-    conPrints = PRINT_PER_LINE;
-    Serial.println("");
-  }
+	//read sensors
+	temp_sense();
+	sense_wifi_rssi();
+	ori_sense();
 
-  //read sensors
-  temp_sense();
-  sense_wifi_rssi();
-  ori_sense();
+	//check if alarm conditions met
+	if( alarmArmed ){
+		mag_checkAlarmTriggered();
+	}
 
-  //check if alarm conditions met
-  if( alarmArmed ){
-    mag_checkAlarmTriggered();
-  }
+	if( WiFi.status() == WL_CONNECTED || APssid[0] == 0 ){ //connected to a wifi network
 
+		bool sendData = true;
+		if( activelyCommanded <= 0 ){ //if it's been NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND
+			// less than 0 means inactive, when inactive if waited more than Inactive Interval
+			//attempt output/communication transmission
+			if( activelyCommanded < -INACTIVE_COMMAND_LOOP_INTERVAL ){ 
+				activelyCommanded = 0; //only send after interval num loops
+			}else{
+				sendData = false; //skip sending for INACTIVE_COMMAND_LOOP_INTERVAL loops
+			}
+		}
+		if(sendData){
+			PostAndFetchDataFromCloudServer(IMAGE);  //send image
+			PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
+		}
+    	--activelyCommanded;
 
-  PostAndFetchDataFromCloudServer(IMAGE);  //send image
-  PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
-  //SETTINGS = 1,
+		doCommandsInRecievedData();
 
-  if( webSockClient != NULL && !esp_websocket_client_is_connected(webSockClient) )
-    mainLoopsSinceWebSockStartedConnecting += 1;
+		if( webSockClient != NULL && !esp_websocket_client_is_connected(webSockClient) )
+			mainLoopsSinceWebSockStartedConnecting += 1;
+	}else{
+		Serial.print("."); //print a dot while not connected to an ap for uplink
+	}
 
-  if( logStr.length() > 0 ){
-    Serial.print( logStr );
-    logStr = "";
-  }
+	
 
-  delay(100);
+	delay(100);
 }

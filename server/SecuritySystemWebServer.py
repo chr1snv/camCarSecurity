@@ -21,8 +21,8 @@ import io
 import re
 import os
 import numpy as np
-import cv2
-from requests_toolbelt.multipart import decoder
+#import cv2
+#from requests_toolbelt.multipart import decoder
 
 from netifaces import interfaces, ifaddresses, AF_INET
 
@@ -128,14 +128,19 @@ cmds = []
 def GetCommandListBytes():
 	global cmds
 	output = io.BytesIO()
-	output.write( str(len(cmds)).encode('utf-8') )
-	#output.write( b's' )
-	for cmd in cmds:
-		cmdPart = (cmd[0])[:32]
-		output.write( cmdPart + bytes(32-len(cmdPart)) )
-		valPart = (cmd[1])[:32]
-		output.write( valPart + bytes(32-len(cmdPart)) )
-	cmds = [] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
+	numCmdsToSend = min(9, len(cmds))
+	output.write( str(numCmdsToSend).encode('utf-8') ) #number of commands
+	output.write( b's' ) #commands are from server
+	for cmdIdx in range(0,numCmdsToSend):
+		cmd = cmds[cmdIdx]
+		cmdPart = (cmd[0])[:11]
+		output.write( cmdPart + bytes(11-len(cmdPart)) ) #command
+		output.write( bytes(4-1) + b'0') #device id
+		lenDat = str(len(cmd[1])).encode('utf-8')
+		output.write( bytes(6-len(lenDat))+lenDat)
+		dat = (cmd[1])
+		output.write( dat )
+	cmds = cmds[numCmdsToSend:] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
 	outBytes = output.getvalue()#.encode('utf-8')
 	return outBytes
 
@@ -174,10 +179,15 @@ def atoir_n( c, n ):
 
 #print( "atoir_n( \" 12\", 3 ) %i\n" % atoir_n( " 12", 3 ) )
 
-
+#https://www.optimizationcore.com/coding/websocket-python-parsing-binary-frames-from-a-tcp-socket/
 async def websocketHandler(websocket):
-	async for msg in websocket:
+	async for msg in websocket:#for _ in range(3):
+		#msg = await websocket.read_message()#frame(4096)
+		#print(msg)
+		#async for msg in websocket:
 		rcvTime = datetime.datetime.now()
+		#print(dir(websocket))
+		#msgOpcode = 
 		msgLen = len(msg)
 		if msgLen < 1:
 			return
@@ -186,7 +196,8 @@ async def websocketHandler(websocket):
 		numCmd = msg[0] - b'0'[0] #ascii character difference to convert digit to int
 		cmdIdx = 0
 		fromDorC = msg[1]
-		print("websock rcv %s %c numCmd: %i msgLen: %i msg: %s" % ( rcvTime.strftime("%H:%M:%S-%f"), fromDorC, numCmd, msgLen, msg) )
+		if fromDorC == ord('d'):
+			print("websock rcv %s %c numCmd: %i msgLen: %i msg: %s" % ( rcvTime.strftime("%H:%M:%S-%f"), fromDorC, numCmd, msgLen, msg) )
 		mIdx = 2
 		while cmdIdx < numCmd:
 			#print( "datType %s" % msg[mIdx:mIdx+11] )
@@ -197,7 +208,7 @@ async def websocketHandler(websocket):
 			datLen = atoir_n(msg[mIdx+11+4 : mIdx+11+4+6], 6)
 			mIdx += 11+4+6
 			datStr = msg[mIdx:mIdx+datLen]
-			print( "from %s type: %s devId: %i datLen: %i" % (chr(fromDorC), datType, devId, datLen) )
+			#print( "from %s type: %s devId: %i datLen: %i" % (chr(fromDorC), datType, devId, datLen) )
 			if fromDorC == ord('d'): #from device
 				if datType.startswith(b"Stat"):
 					device.fillValues( datStr ) #read the status data in from device
@@ -211,7 +222,7 @@ async def websocketHandler(websocket):
 					device.fillImage( datStr, datLen )
 			else: #from client (browser http page)
 				if datType.startswith(b'status'):
-					print( device.postStatus )
+					#print( device.postStatus )
 					await websocket.send( b'1sStat          0    80' + device.postStatus + device.lastStatusTime.strftime("%H:%M:%S-%f").encode('utf-8') )
 				elif datType.startswith(b'settings'):
 					setLen = str(len(device.postSettings)).encode('utf-8')
@@ -227,7 +238,8 @@ async def websocketHandler(websocket):
 					cmds.append( [cmd, val] )
 			mIdx += datLen
 			cmdIdx += 1
-			print( " mIdx %i" % mIdx )
+			#print( " mIdx %i" % mIdx )
+			
 
 
 class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
