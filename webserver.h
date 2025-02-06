@@ -105,14 +105,14 @@ void fillSettingsString(){
 		uint8_t storedNetworksSettingsStrStart = 52;
 		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
 			char networkInfo[NETWORK_NAME_LEN];
-      snprintf(storedPrefKey, 8,"net%i", i );
-      memset( networkInfo, '\0', NETWORK_NAME_LEN );
+		snprintf(storedPrefKey, 8,"net%i", i );
+		memset( networkInfo, '\0', NETWORK_NAME_LEN );
 			preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
 			memcpy( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2*i)]),
 				networkInfo, NETWORK_NAME_LEN );
 			//Serial.print("net");Serial.println(i);
 			snprintf(storedPrefKey, 8,"pass%i", i );
-      memset( networkInfo, '\0', NETWORK_NAME_LEN );
+		memset( networkInfo, '\0', NETWORK_NAME_LEN );
 			preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
 			ObfsucatePass(networkInfo, NETWORK_NAME_LEN);
 			memcpy( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*((2*i)+1))]),
@@ -136,47 +136,47 @@ camera_fb_t * fb;
 size_t _jpg_buf_len = 0;
 uint8_t * _jpg_buf = NULL;
 void freeJpegBuf( ){
-  if( jpgBufType == 2 )
-      free( _jpg_buf );
-  else if( jpgBufType == 1 )
-    esp_camera_fb_return( fb );
-  jpgBufType = 0;
+	if( jpgBufType == 2 )
+		free( _jpg_buf );
+	else if( jpgBufType == 1 )
+		esp_camera_fb_return( fb );
+	jpgBufType = 0;
 }
 
 
 uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
-  //after done with result need to free allocated memory
-  //if returns 1 call "esp_camera_fb_return( fb )" 
-  //if returns 2 call  "free( _jpg_buf )"
-  fb = esp_camera_fb_get();
-  esp_err_t res = ESP_OK;
-  if (!fb) {
-    Serial.println("Cam fb get failed");
-    return 0;
-  } else {
-    if(fb->width > 200){ //400
-      if(fb->format != PIXFORMAT_JPEG){
-        bool jpeg_converted = frame2jpg(fb, 80, _jpg_buf, _jpg_buf_len);
-        esp_camera_fb_return(fb);
-        fb = NULL;
-        if(!jpeg_converted){
-          Serial.println("JPEG compres failed");
-          jpgBufType = 0;
-          return 0;
-        }else{
-          jpgBufType = 2;
-          return 2;
-        }
-      } else {
-        _jpg_buf_len[0] = fb->len;
-        _jpg_buf[0] = fb->buf;
-        jpgBufType = 1;
-        return 1;
-      }
-    }
-    jpgBufType = 1;
-    return 1;
-  }
+	//after done with result need to free allocated memory
+	//if returns 1 call "esp_camera_fb_return( fb )" 
+	//if returns 2 call  "free( _jpg_buf )"
+	fb = esp_camera_fb_get();
+	esp_err_t res = ESP_OK;
+	if (!fb) {
+		Serial.println("Cam fb get failed");
+		return 0;
+	} else {
+	if(fb->width > 200){ //400
+		if(fb->format != PIXFORMAT_JPEG){
+			bool jpeg_converted = frame2jpg(fb, 80, _jpg_buf, _jpg_buf_len);
+			esp_camera_fb_return(fb);
+			fb = NULL;
+			if(!jpeg_converted){
+				Serial.println("JPEG compres failed");
+				jpgBufType = 0;
+				return 0;
+			}else{
+				jpgBufType = 2;
+				return 2;
+			}
+		} else {
+			_jpg_buf_len[0] = fb->len;
+			_jpg_buf[0] = fb->buf;
+			jpgBufType = 1;
+			return 1;
+		}
+	}
+	jpgBufType = 1;
+	return 1;
+	}
 }
 
 void fillJpegSendHdr( size_t _jpg_buf_len ){
@@ -242,8 +242,8 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	//servo position control
 	else if(!strncmp(cmd, "up", 2)) {
 		if(servo1Angle <= 170) {
-		servo1Angle += 10;
-		servo1.write(servo1Angle);
+			servo1Angle += 10;
+			servo1.write(servo1Angle);
 		}
 		Serial.println(servo1Angle);
 		Serial.println("Up");
@@ -251,8 +251,8 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "left", 4)) {
 		if(servo2Angle <= 170) {
-		servo2Angle += 10;
-		servo2.write(servo2Angle);
+			servo2Angle += 10;
+			servo2.write(servo2Angle);
 		}
 		Serial.println(servo2Angle);
 		Serial.println("Left");
@@ -260,8 +260,8 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "right", 5)) {
 		if(servo2Angle >= 10) {
-		servo2Angle -= 10;
-		servo2.write(servo2Angle);
+			servo2Angle -= 10;
+			servo2.write(servo2Angle);
 		}
 		Serial.println(servo2Angle);
 		Serial.println("Right");
@@ -269,8 +269,8 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "down", 4)) {
 		if(servo1Angle >= 10) {
-		servo1Angle -= 10;
-		servo1.write(servo1Angle);
+			servo1Angle -= 10;
+			servo1.write(servo1Angle);
 		}
 		Serial.println(servo1Angle);
 		Serial.println("Down");
@@ -340,7 +340,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if(!strncmp(cmd, "net", 3)){
 		uint8_t netNum = cmd[3] -'0';
 		preferences.begin("storedVals", false);
-      uint16_t len = min( valLen, (uint16_t)NETWORK_NAME_LEN );
+		uint16_t len = min( valLen, (uint16_t)NETWORK_NAME_LEN );
 			snprintf( storedPrefKey, 8, "net%i", netNum );
 			preferences.putBytes( storedPrefKey, value, len );
 			Serial.print( "storing at |" ); Serial.print( storedPrefKey ); 
@@ -352,7 +352,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if(!strncmp(cmd, "pass", 4)){
 		uint8_t netNum = cmd[4] -'0';
 		preferences.begin("storedVals", false);
-      uint16_t len = min( valLen, (uint16_t)NETWORK_NAME_LEN );
+		uint16_t len = min( valLen, (uint16_t)NETWORK_NAME_LEN );
 			snprintf( storedPrefKey, 8, "pass%i", netNum );
 			preferences.putBytes( storedPrefKey, value, len );
 			Serial.print( "storing at |" ); Serial.print( storedPrefKey ); 
@@ -508,12 +508,12 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 			uint8_t * _jpg_buf = NULL;
 			if( getJpeg( &_jpg_buf, &_jpg_buf_len) != 0 ){
 				Serial.print("send img "); Serial.println( _jpg_buf_len );
-        fillJpegSendHdr( _jpg_buf_len );
-        httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
-        Serial.print("jpgHdr Resp ");Serial.println(httpResponseCode);
-				httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
-        esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
-				freeJpegBuf();
+			fillJpegSendHdr( _jpg_buf_len );
+			httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
+			Serial.print("jpgHdr Resp ");Serial.println(httpResponseCode);
+					httpResponseCode = esp_websocket_client_send_cont_msg(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
+			esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
+					freeJpegBuf();
 			}
 		}
 
@@ -554,6 +554,6 @@ void startCameraServer(){
 		httpd_register_uri_handler(camera_httpd, &index_uri);
 		httpd_register_uri_handler(camera_httpd, &cmd_uri);
 		httpd_register_uri_handler(camera_httpd, &settings_uri);
-    Serial.println("Local webpage ready! ");
+	Serial.println("Local webpage ready! ");
 	}
 }

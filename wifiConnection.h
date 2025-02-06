@@ -15,37 +15,37 @@ char APpassword[SSIDPASSLEN+1] = {0,0,0,0,0,0,0,0,0,0};
 //wifi_band_t supportedBands;
 
 void wiFiEncryptionTypeToString(wifi_auth_mode_t type){
-  switch (type){
-    case WIFI_AUTH_OPEN:
-        Serial.print("open");
-        break;
-    case WIFI_AUTH_WEP:
-        Serial.print("WEP");
-        break;
-    case WIFI_AUTH_WPA_PSK:
-        Serial.print("WPA");
-        break;
-    case WIFI_AUTH_WPA2_PSK:
-        Serial.print("WPA2");
-        break;
-    case WIFI_AUTH_WPA_WPA2_PSK:
-        Serial.print("WPA+WPA2");
-        break;
-    case WIFI_AUTH_WPA2_ENTERPRISE:
-        Serial.print("WPA2-EAP");
-        break;
-    case WIFI_AUTH_WPA3_PSK:
-        Serial.print("WPA3");
-        break;
-    case WIFI_AUTH_WPA2_WPA3_PSK:
-        Serial.print("WPA2+WPA3");
-        break;
-    case WIFI_AUTH_WAPI_PSK:
-        Serial.print("WAPI");
-        break;
-    default:
-        Serial.print("unknown");
-  }
+	switch (type){
+		case WIFI_AUTH_OPEN:
+			Serial.print("open");
+			break;
+		case WIFI_AUTH_WEP:
+			Serial.print("WEP");
+			break;
+		case WIFI_AUTH_WPA_PSK:
+			Serial.print("WPA");
+			break;
+		case WIFI_AUTH_WPA2_PSK:
+			Serial.print("WPA2");
+			break;
+		case WIFI_AUTH_WPA_WPA2_PSK:
+			Serial.print("WPA+WPA2");
+			break;
+		case WIFI_AUTH_WPA2_ENTERPRISE:
+			Serial.print("WPA2-EAP");
+			break;
+		case WIFI_AUTH_WPA3_PSK:
+			Serial.print("WPA3");
+			break;
+		case WIFI_AUTH_WPA2_WPA3_PSK:
+			Serial.print("WPA2+WPA3");
+			break;
+		case WIFI_AUTH_WAPI_PSK:
+			Serial.print("WAPI");
+			break;
+		default:
+			Serial.print("unknown");
+	}
 }
 
 /*
@@ -70,10 +70,10 @@ void wiFiEncryptionTypeToString(wifi_auth_mode_t type){
 |--------|-------------------|
 */
 float dBmToWatts(float dBm){
-  return pow(10, dBm/10.0)/1000;
+	return pow(10, dBm/10.0)/1000;
 }
 float wattsTodBm(float watts){
-  return watts;
+	return watts;
 }
 
 //channels 12-13 to be avoided in north america (14 only allowed in japan)
@@ -84,92 +84,92 @@ uint16_t maxChanFreq;
 uint8_t minChan;
 uint8_t maxChan;
 void wifiChanToMinMaxFreq(uint8_t chan){
-  switch(chan){
-    case 1:
-      minChanFreq = 2402;
-      maxChanFreq = 2422;
-      minChan = 1;
-      maxChan = 3;
-      break;
-    case 2:
-      minChanFreq = 2407;
-      maxChanFreq = 2427;
-      minChan = 1;
-      maxChan = 4;
-      break;
-    case 3:
-      minChanFreq = 2412;
-      maxChanFreq = 2432;
-      minChan = 1;
-      maxChan = 5;
-      break;
-    case 4:
-      minChanFreq = 2417;
-      maxChanFreq = 2437;
-      minChan = 2;
-      maxChan = 6;
-      break;
-    case 5:
-      minChanFreq = 2422;
-      maxChanFreq = 2442;
-      minChan = 3;
-      maxChan = 7;
-      break;
-    case 6:
-      minChanFreq = 2427;
-      maxChanFreq = 2447;
-      minChan = 4;
-      maxChan = 8;
-      break;
-    case 7:
-      minChanFreq = 2432;
-      maxChanFreq = 2452;
-      minChan = 5;
-      maxChan = 9;
-      break;
-    case 8:
-      minChanFreq = 2437;
-      maxChanFreq = 2457;
-      minChan = 6;
-      maxChan = 10;
-      break;
-    case 9:
-      minChanFreq = 2442;
-      maxChanFreq = 2462;
-      minChan = 7;
-      maxChan = 11;
-      break;
-    case 10:
-      minChanFreq = 2447;
-      maxChanFreq = 2467;
-      minChan = 8;
-      maxChan = 12;
-      break;
-    case 11:
-      minChanFreq = 2452;
-      maxChanFreq = 2472;
-      minChan = 9;
-      maxChan = 13;
-      break;
-    case 12:
-      minChanFreq = 2457;
-      maxChanFreq = 2477;
-      minChan = 10;
-      maxChan = 14;
-      break;
-    case 13:
-      minChanFreq = 2462;
-      maxChanFreq = 2482;
-      minChan = 11;
-      maxChan = 14;
-      break;
-    case 14:
-      minChanFreq = 2473;
-      maxChanFreq = 2495;
-      minChan = 12;
-      maxChan = 14;
-      break;
-  }
+	switch(chan){
+		case 1:
+			minChanFreq = 2402;
+			maxChanFreq = 2422;
+			minChan = 1;
+			maxChan = 3;
+			break;
+		case 2:
+			minChanFreq = 2407;
+			maxChanFreq = 2427;
+			minChan = 1;
+			maxChan = 4;
+			break;
+		case 3:
+			minChanFreq = 2412;
+			maxChanFreq = 2432;
+			minChan = 1;
+			maxChan = 5;
+			break;
+		case 4:
+			minChanFreq = 2417;
+			maxChanFreq = 2437;
+			minChan = 2;
+			maxChan = 6;
+			break;
+		case 5:
+			minChanFreq = 2422;
+			maxChanFreq = 2442;
+			minChan = 3;
+			maxChan = 7;
+			break;
+		case 6:
+			minChanFreq = 2427;
+			maxChanFreq = 2447;
+			minChan = 4;
+			maxChan = 8;
+			break;
+		case 7:
+			minChanFreq = 2432;
+			maxChanFreq = 2452;
+			minChan = 5;
+			maxChan = 9;
+			break;
+		case 8:
+			minChanFreq = 2437;
+			maxChanFreq = 2457;
+			minChan = 6;
+			maxChan = 10;
+			break;
+		case 9:
+			minChanFreq = 2442;
+			maxChanFreq = 2462;
+			minChan = 7;
+			maxChan = 11;
+			break;
+		case 10:
+			minChanFreq = 2447;
+			maxChanFreq = 2467;
+			minChan = 8;
+			maxChan = 12;
+			break;
+		case 11:
+			minChanFreq = 2452;
+			maxChanFreq = 2472;
+			minChan = 9;
+			maxChan = 13;
+			break;
+		case 12:
+			minChanFreq = 2457;
+			maxChanFreq = 2477;
+			minChan = 10;
+			maxChan = 14;
+			break;
+		case 13:
+			minChanFreq = 2462;
+			maxChanFreq = 2482;
+			minChan = 11;
+			maxChan = 14;
+			break;
+		case 14:
+			minChanFreq = 2473;
+			maxChanFreq = 2495;
+			minChan = 12;
+			maxChan = 14;
+			break;
+	}
 }
 
 #define NETWORK_NAME_LEN 32
@@ -181,105 +181,105 @@ uint8_t numFoundNetworks;
 #define HIGHEST_ALLOWED_WIFI_CHANNEL 11
 float channelWattage[NUM_WIFI_CHANNEL_BINS];
 uint8_t wifi_scanNetworks(){ 
-  //get a list of the active networks
-  //(to decide which channel to use if setting up ap only
-  //or to reconnect to a known network)
+	//get a list of the active networks
+	//(to decide which channel to use if setting up ap only
+	//or to reconnect to a known network)
 
-/*
-  //doesn't compile on esp32 (probably 5g not supported)
-  esp_wifi_get_band(&supportedBands);
-  Serial.print("supported bands ");
-  Serial.println(supportedBands);
-*/
+	/*
+	//doesn't compile on esp32 (probably 5g not supported)
+	esp_wifi_get_band(&supportedBands);
+	Serial.print("supported bands ");
+	Serial.println(supportedBands);
+	*/
 
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected.
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
- 
-  for (uint8_t i = 0; i < NUM_WIFI_CHANNEL_BINS; ++i)
-    channelWattage[i] = 0.0;
+	// Set WiFi to station mode and disconnect from an AP if it was previously connected.
+	WiFi.mode(WIFI_STA);
+	WiFi.disconnect();
+	delay(100);
 
-  Serial.println("WiFi scan setup done, start scan");
- 
-  // WiFi.scanNetworks will return the number of networks found.
-  int n = WiFi.scanNetworks(false, true, true); //synchronous, passive, show hidden channels
-  Serial.println("Scan done");
-  numFoundNetworks = 0;
-  if (n == 0) {
-      Serial.println("no networks found");
-  } else {
-      Serial.print(n);
-      Serial.println(" networks found");
-      Serial.println("Nr | SSID                             | RSSI | CH | Encryption | wattage sum");
-      for (int i = 0; i < n; ++i) {
-          // Print SSID and RSSI for each network found
-          Serial.printf("%2d",i + 1);
-          Serial.print(" | ");
-          Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
+	for (uint8_t i = 0; i < NUM_WIFI_CHANNEL_BINS; ++i)
+	channelWattage[i] = 0.0;
 
-          strncpy( &(foundNetworks[NETWORK_NAME_LEN*(numFoundNetworks++)]), WiFi.SSID(i).c_str(), NETWORK_NAME_LEN );
-          Serial.print(" | ");
-          Serial.printf("%4d", WiFi.RSSI(i));
-          Serial.print(" | ");
-          Serial.printf("%2d", WiFi.channel(i));
-          Serial.print(" | ");
-          wiFiEncryptionTypeToString( WiFi.encryptionType(i) );
-          Serial.print(" | ");
-          //get frequencies/channels covered by station
-          wifiChanToMinMaxFreq(WiFi.channel(i));
-          float staWatts = dBmToWatts(WiFi.RSSI(i));
-          for(int j = minChan; j < maxChan; ++j) //and sum/accumulate wattage in channels
-            channelWattage[j] += staWatts;
-          Serial.println( channelWattage[WiFi.channel(i)-1], 20 );
-          delay(10);
-      }
-    }
-    Serial.println("");
- 
-    // Delete the scan result to free memory for code below.
-    WiFi.scanDelete();
+	Serial.println("WiFi scan setup done, start scan");
 
-    //find the lowest number channel with lowest wattage
-    uint8_t lowestPowerBinIdx = 0;
-    float lowestWattage = FLT_MAX;
-    for (uint8_t i = 0; i < HIGHEST_ALLOWED_WIFI_CHANNEL; ++i) {
-      Serial.print( "chan " );
-      Serial.print( i+1 );
-      wifiChanToMinMaxFreq(i);
-      float sumWattage = 0;
-      for(int j = minChan; j < maxChan; ++j)
-        sumWattage += channelWattage[j];
-      Serial.print(" wattage ");
-      Serial.println( sumWattage, 20 );
-      if( sumWattage < lowestWattage ){
-        lowestWattage = sumWattage;
-        lowestPowerBinIdx = i+1;
-      }
-    }
-    Serial.print( "lowest wattage channel " ); Serial.print( lowestPowerBinIdx );
-    Serial.print( " wattage " ); Serial.println( lowestWattage, 20 );
+	// WiFi.scanNetworks will return the number of networks found.
+	int n = WiFi.scanNetworks(false, true, true); //synchronous, passive, show hidden channels
+	Serial.println("Scan done");
+	numFoundNetworks = 0;
+	if (n == 0) {
+		Serial.println("no networks found");
+	} else {
+		Serial.print(n);
+		Serial.println(" networks found");
+		Serial.println("Nr | SSID                             | RSSI | CH | Encryption | wattage sum");
+		for (int i = 0; i < n; ++i) {
+			// Print SSID and RSSI for each network found
+			Serial.printf("%2d",i + 1);
+			Serial.print(" | ");
+			Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
 
-    // Wait a bit before scanning again.
-    //delay(5000);
-    return lowestPowerBinIdx;
+			strncpy( &(foundNetworks[NETWORK_NAME_LEN*(numFoundNetworks++)]), WiFi.SSID(i).c_str(), NETWORK_NAME_LEN );
+			Serial.print(" | ");
+			Serial.printf("%4d", WiFi.RSSI(i));
+			Serial.print(" | ");
+			Serial.printf("%2d", WiFi.channel(i));
+			Serial.print(" | ");
+			wiFiEncryptionTypeToString( WiFi.encryptionType(i) );
+			Serial.print(" | ");
+			//get frequencies/channels covered by station
+			wifiChanToMinMaxFreq(WiFi.channel(i));
+			float staWatts = dBmToWatts(WiFi.RSSI(i));
+			for(int j = minChan; j < maxChan; ++j) //and sum/accumulate wattage in channels
+			channelWattage[j] += staWatts;
+			Serial.println( channelWattage[WiFi.channel(i)-1], 20 );
+			delay(10);
+		}
+	}
+	Serial.println("");
+
+	// Delete the scan result to free memory for code below.
+	WiFi.scanDelete();
+
+	//find the lowest number channel with lowest wattage
+	uint8_t lowestPowerBinIdx = 0;
+	float lowestWattage = FLT_MAX;
+	for (uint8_t i = 0; i < HIGHEST_ALLOWED_WIFI_CHANNEL; ++i) {
+		Serial.print( "chan " );
+		Serial.print( i+1 );
+		wifiChanToMinMaxFreq(i);
+		float sumWattage = 0;
+		for(int j = minChan; j < maxChan; ++j)
+		sumWattage += channelWattage[j];
+		Serial.print(" wattage ");
+		Serial.println( sumWattage, 20 );
+		if( sumWattage < lowestWattage ){
+		lowestWattage = sumWattage;
+		lowestPowerBinIdx = i+1;
+		}
+	}
+	Serial.print( "lowest wattage channel " ); Serial.print( lowestPowerBinIdx );
+	Serial.print( " wattage " ); Serial.println( lowestWattage, 20 );
+
+	// Wait a bit before scanning again.
+	//delay(5000);
+	return lowestPowerBinIdx;
 }
 
 void fillStringWithRandomASCII(char * buf, size_t len){
 	esp_fill_random(buf, len);
-  char numRange   = ('9' - '0');
-  char upperRange = ('Z' - 'A');
-  char lowerRange = ('z' - 'a');
-  char range = numRange + upperRange + lowerRange;
+	char numRange   = ('9' - '0');
+	char upperRange = ('Z' - 'A');
+	char lowerRange = ('z' - 'a');
+	char range = numRange + upperRange + lowerRange;
 	for( size_t i = 0; i < len; ++i ){
-    char c = buf[i] % range;
-    if( c <= numRange )
-      buf[i] = c + '0';
-    else if ( c <= numRange + upperRange )
-      buf[i] = (c - numRange) + 'A';
-    else
-      buf[i] = (c - (numRange + upperRange) ) + 'a';
-  }
+		char c = buf[i] % range;
+	if( c <= numRange )
+		buf[i] = c + '0';
+	else if ( c <= numRange + upperRange )
+		buf[i] = (c - numRange) + 'A';
+	else
+		buf[i] = (c - (numRange + upperRange) ) + 'a';
+	}
 }
 
 #define WIFI_CONNECT_MAX_SECONDS_TO_WAIT 7
@@ -304,15 +304,15 @@ void connectWiFi(uint8_t channelToCreateAp){
 		if(!preferences.isKey(storedPrefKey) )
 			continue; //no stored value for key
 		Serial.print( "getting pref Key |" ); Serial.println( storedPrefKey );
-    memset( storedNetwork, '\0', NETWORK_NAME_LEN );
+	memset( storedNetwork, '\0', NETWORK_NAME_LEN );
 		preferences.getBytes( storedPrefKey, &storedNetwork[0], NETWORK_NAME_LEN );
 		sprintf( storedPrefKey, "pass%i", num );
-    memset( storedPassword, '\0', NETWORK_NAME_LEN );
+	memset( storedPassword, '\0', NETWORK_NAME_LEN );
 		preferences.getBytes( storedPrefKey, &storedPassword[0], NETWORK_NAME_LEN );
 		Serial.print( "stored network |");
-    Serial.print( storedNetwork ); Serial.println( "|" );
-    Serial.print( " storedPassword |" );
-    Serial.print( storedPassword ); Serial.println( "|" );
+	Serial.print( storedNetwork ); Serial.println( "|" );
+	Serial.print( " storedPassword |" );
+	Serial.print( storedPassword ); Serial.println( "|" );
 		for( uint8_t i = 0; ((i < numFoundNetworks) && (!joinedNetwork)); ++i ){
 			foundNetworkLen = strlcpy( foundNetwork, &(foundNetworks[NETWORK_NAME_LEN*i]),  NETWORK_NAME_LEN );
 			Serial.print("found network |"); Serial.print(foundNetwork); Serial.println( "|" );
@@ -345,7 +345,7 @@ void connectWiFi(uint8_t channelToCreateAp){
 		Serial.print("creating wifi ap with ssid "); Serial.print(APssid); Serial.print(" password "); Serial.println(APpassword);
 		WiFi.softAP(APssid, APpassword, channelToCreateAp, APhideSSid, APmaxClients);
 	}else{
-	//connected to network so don't have to start an access point
+		//connected to network so don't have to start an access point
 	}
 
 	esp_wifi_set_max_tx_power(8); //range is [8, 84] corresponding to 2dBm - 20dBm
