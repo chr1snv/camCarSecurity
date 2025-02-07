@@ -355,7 +355,7 @@
 				}
 
 				socketInstance.onerror = (event) => {
-					console.log("socketInstance.onerror " + event);
+					console.log("socketInstance.onerror " + event.data);
 					let nAtElm = document.getElementById("networkAuthText");
 					nAtElm.innerHTML = "websocket, certificate may need to be accepted - or server error";
 					let nALElm = document.getElementById("networkAuthLink");
@@ -385,16 +385,18 @@
 						DisplayStatus( resp );
 					}else if( respType.startsWith("Set") ){
 						DisplaySettings( resp );
-					}else if( respType.startsWith("Image") ){
+					}else{// if( respType.startsWith("Image") ){
 						//https://gist.github.com/candycode/f18ae1767b2b0aba568e
-						let arrayBufferView = new Uint8Array( resp );
+						let arrayBufferView = new Uint8Array( response );
 						let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
 						let urlCreator = window.URL || window.webkitURL;
 						let imageUrl = urlCreator.createObjectURL( blob );
 						let img = document.querySelector( "#photo" );
 						img.src = imageUrl;//xhr.response;
 						camRot90(rot90);
-					}
+					}//else{
+					//	console.log( respType );
+					//}
 					
 				}
 			}else{
@@ -457,6 +459,26 @@
 		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
 		setInterval(MainLoop, 100); //100ms (10x a second)
 		camRot90(true);
+		
+		buf = []
+		function fillStringWithRandomASCII( buf, len){
+			
+			let numRange   = ('9'.charCodeAt(0) - '0'.charCodeAt(0));
+			let upperRange = ('Z'.charCodeAt(0) - 'A'.charCodeAt(0));
+			let lowerRange = ('z'.charCodeAt(0) - 'a'.charCodeAt(0));
+			let range = numRange + upperRange + lowerRange;
+			for( let i = 0; i < len; ++i ){
+				let c = Math.round(Math.random() * range);
+				if( c <= numRange ){
+					buf.push( String.fromCharCode( c + '0'.charCodeAt(0) ) );
+				}else if ( c <= numRange + upperRange ){
+					buf.push( String.fromCharCode( (c - numRange) + 'A'.charCodeAt(0) ) );
+				}else{
+					buf.push( String.fromCharCode( (c - (numRange + upperRange) ) + 'a'.charCodeAt(0) ) );
+				}
+			}
+		}
+		fillStringWithRandomASCII( buf, 2);
 		
 		
 		</script>

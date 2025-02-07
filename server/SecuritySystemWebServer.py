@@ -116,6 +116,7 @@ class Device:
 		self.lastSettingsTime = datetime.datetime.now()
 		
 	def fillImage(self, datStr, datStrLen):
+		#print( "last image len %i datStrLen %i " % (len(datStr), datStrLen )  )
 		self.lastImage = datStr
 		self.lastImageLength = datStrLen
 		self.lastImageTime = datetime.datetime.now()
@@ -197,7 +198,7 @@ async def websocketHandler(websocket):
 		cmdIdx = 0
 		fromDorC = msg[1]
 		if fromDorC == ord('d'):
-			print("websock rcv %s %c numCmd: %i msgLen: %i msg: %s" % ( rcvTime.strftime("%H:%M:%S-%f"), fromDorC, numCmd, msgLen, msg) )
+			print("websock rcv %s %c numCmd: %i msgLen: %i " % ( rcvTime.strftime("%H:%M:%S-%f"), fromDorC, numCmd, msgLen) )
 		mIdx = 2
 		while cmdIdx < numCmd:
 			#print( "datType %s" % msg[mIdx:mIdx+11] )
@@ -214,11 +215,11 @@ async def websocketHandler(websocket):
 					device.fillValues( datStr ) #read the status data in from device
 					#respond with queued commands
 					outBytes = GetCommandListBytes()
-					print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
+					#print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
 					await websocket.send( outBytes )
 				if datType.startswith(b"Set"):
 					device.fillSettings( datStr )
-				if datType.startswith(b"Image"):
+				if datType.startswith(b"Img"):
 					device.fillImage( datStr, datLen )
 			else: #from client (browser http page)
 				if datType.startswith(b'status'):
@@ -230,6 +231,7 @@ async def websocketHandler(websocket):
 					await websocket.send( b'1sSet           0' + setLen + device.postSettings + device.lastSettingsTime.strftime("%H:%M:%S-%f").encode('utf-8') )
 				elif datType.startswith(b'image'):
 					#print(device.lastImage)
+					#print("sending image to browser %i " % len(device.lastImage) )
 					await websocket.send( device.lastImage )
 				else:
 					cmd = datType
