@@ -29,6 +29,7 @@
 #include <Preferences.h> //for non volitile memory storage
 Preferences preferences;
 
+#include "GlobalDefinesAndFunctions.h"
 
 #define SERVO_1      12//14
 #define SERVO_2      13//15
@@ -69,9 +70,7 @@ void ArmAlarm(bool enable){
 	alarmArmed = enable;
 }
 
-//one loop is 1/10th of a second ( from delay(100); in wifiCamCarSecuritySystem.ino )
-#define INACTIVE_COMMAND_LOOP_INTERVAL 10
-#define NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND 100
+
 int activelyCommanded = 0;
 uint16_t connectionAttempts = 0;
 
@@ -146,17 +145,6 @@ void loop() {
 		Serial.print(sNum);
 		Serial.println("");
 		Serial.print("mainLoopsSinceWebSockStartedConnecting");Serial.println(mainLoopsSinceWebSockStartedConnecting);
-		if(mainLoopsSinceWebSockStartedConnecting > 500 ){
-			
-			if( camera_httpd == NULL )
-				startCameraServer();
-			if( camera_httpd != NULL ){
-			Serial.print("server at http://");
-			Serial.print( WiFi.localIP() );
-			Serial.print( " on " );
-			Serial.println( foundNetwork );
-		}
-	}
 	}
 
 	//read sensors
@@ -187,7 +175,7 @@ void loop() {
 		}
     	--activelyCommanded;
 
-		doCommandsInRecievedData();
+		doCommandsInRecievedData(payloadLen, payload);
 
 		if( webSockClient != NULL && !esp_websocket_client_is_connected(webSockClient) )
 			mainLoopsSinceWebSockStartedConnecting += 1;

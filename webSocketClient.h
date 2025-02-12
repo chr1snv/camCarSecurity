@@ -1,20 +1,26 @@
+#ifndef Web_Socket_Client
+#define Web_Socket_Client
+
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
+#include "Arduino.h"
+#include "esp_websocket_client.h"
 
-const char tag[] = "ws";
+#define WS_LOG_TAG "ws"
+//const char tag[] = "ws";
 
-void log_error_if_nonzero(String s, int v){
-	if( v != 0)
-		ESP_LOGI( tag, s );
-}
+void log_error_if_nonzero(String s, int v);
 
 //refrence
 //https://github.com/espressif/esp-protocols/blob/master/components/esp_websocket_client/examples/target/main/websocket_example.c
-uint16_t payloadLen = 0;
-const char * payload;
+extern uint16_t payloadLen;
+extern const char * payload;
+
+
 static void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
 	esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
+  ESP_LOGI( tag, "websocket_event_handler\n" );
 	switch (event_id) {
 		case WEBSOCKET_EVENT_BEGIN:
 			ESP_LOGI( tag, "WEBSOCKET_EVENT_BEGIN\n" );
@@ -48,55 +54,10 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base, i
 	}
 }
 
-void printPayload(uint16_t start, uint16_t end){
-	uint16_t maxPrintIdx = min( end, (uint16_t)(payloadLen-1) );
-	Serial.print( "payload[");Serial.print(start);Serial.print("-");
-	Serial.print(maxPrintIdx);Serial.print("]");
-	for(uint8_t k = start; k < maxPrintIdx; ++k){
-		if( payload[k] == 0 )
-			Serial.print("~");
-		else
-			Serial.print( payload[k] );
-	}
-	Serial.print("|\n");
-}
 
-void doCommandsInRecievedData(){
-	//check the response for pending commands
-	if ( payloadLen > WEB_SEND_HDR_LEN-1 ){
-    Serial.print( "pLen "); Serial.println( payloadLen );
-		//numData can be 0-9 (one ascii digit)
-		//|numData(1) | 'd'(1) |dataTypeStr (11) | deviceId(4) | dataLen(6) | data
-		printPayload( 0, WEB_SEND_HDR_LEN );
-		
-		uint8_t numData = payload[0] - '0';
-		char from = payload[1];
-		Serial.print(" numData ");
-		Serial.println( numData );
-		
-		if( numData > 0 && numData < 10 ){ // a number of commands was recieved
-			activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
-			//do all recieved commands
-			uint16_t idx = 2;
-			for( uint8_t i = 0; i < numData; ++i ){
-				Serial.print("i "); Serial.println(i);
-				printPayload( idx, (uint16_t)(idx+WEB_SEND_HDR_LEN) );
 
-				uint16_t datTypeIdx = idx;
-				uint16_t datDevNumIdx = datTypeIdx+DAT_TYPE_LEN;
-				uint16_t datDatLenIdx = datDevNumIdx+DAT_DEV_ID_LEN;
-				uint16_t datDatIdx = datDatLenIdx+DAT_DAT_LEN;
-				uint16_t datLen = atoir_n(&(payload[datDatLenIdx+DAT_DAT_LEN-1]), 6);
-				Serial.print( " datDatLenIdx " ); Serial.print( datDatLenIdx );
-				Serial.print( " datDatIdx " ); Serial.print( datDatIdx );
-				Serial.print( " datLen "); Serial.println( datLen );
-				doCommand( &(payload[datTypeIdx]), datLen, &(payload[datDatIdx]) );
-				idx += datDatIdx + datLen;
-				Serial.print( " idx " ); Serial.println( idx );
-			}
-		}
-		payloadLen = 0;
-		Serial.println( "end doCommandsInRecievedData" );
-	}
-	
-}
+void printPayload(uint16_t start, uint16_t end, const char * payload );
+
+uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload );
+
+#endif

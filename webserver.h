@@ -6,28 +6,7 @@
 httpd_handle_t camera_httpd = NULL;
 
 
-#define CMD_VAL_LEN_LEN 4
-#define CMD_NAME_LEN 12
-#define CMD_LEN CMD_NAME_LEN+CMD_VAL_LEN_LEN
-#define CMD_BUFF_MAX_LEN 512
-
-//commands are recieved in the format
-// | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
-//||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
-#define MAX_SVR_URL_LEN 128
-#define SVR_CERT_MAX_LEN 1400
-#define SVR_CERT_PART_LENGTH 256
-#define NUM_SVR_CERT_PARTS ceil(SVR_CERT_MAX_LEN / (float)SVR_CERT_PART_LENGTH)
-
-//data is sent over the websocket to the cloud server in the format
-//|numData(1) | 'd'(1) |dataTypeStr (11) | deviceId(4) | dataLen(6) | data
-//with numbers start padded/lsb aligned with end of allocated area
-#define DAT_NUM_DAT_LEN 1
-#define DAT_FROM_LEN 1
-#define DAT_TYPE_LEN 11
-#define DAT_DEV_ID_LEN 4
-#define DAT_DAT_LEN 6
-#define WEB_SEND_HDR_LEN DAT_NUM_DAT_LEN+DAT_FROM_LEN+DAT_TYPE_LEN+DAT_DEV_ID_LEN+DAT_DAT_LEN //23
+#include "WebComDefines.h"
 
 uint16_t serverUrlLen = 0;
 uint16_t serverCertLen = 0;
@@ -122,6 +101,15 @@ void fillSettingsString(){
 	preferences.end();
 	memset( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*(2*MAX_STORED_NETWORKS))]),
 			'\0', 1 ); //prevent segfault reboot from missing \0
+}
+
+void fillWebsvrStr(){
+  //fill header
+	lastCsiInfoStr[0] = '1';
+	lastCsiInfoStr[1] = 'd';
+	snprintf( &(lastCsiInfoStr[2]), 11+1, "Stat" );
+	snprintf( &(lastCsiInfoStr[13]), 4+1, "% 4d", devId );
+	snprintf( &(lastCsiInfoStr[17]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH );
 }
 
 static esp_err_t settings_handler(httpd_req_t *req){
@@ -314,13 +302,15 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "svrUrl", 6)){
 		preferences.begin("storedVals", false);
+      uint8_t urlNum = cmd[6] - '0';
 			uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
-			preferences.putBytes("svrUrl", value, storLen );
-			Serial.print(" storing svrUrl len ");Serial.println(storLen);
+			preferences.putBytes("svrUrl"+urlNum, value, storLen );
+			Serial.print(" storing svrUrl");Serial.print(urlNum);Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
 		sucessfulyHandledCmd = 15;
 	}
 	else if(!strncmp(cmd, "svrCertLen", 10)){
+
 		preferences.begin("storedVals", false);
 			uint16_t certLen = atoir_n(&value[valLen-1], valLen );
 			preferences.putInt( "svrCertLen", certLen );
@@ -366,10 +356,10 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 }
 
 //read the stored server cert back from preferences
-void readSvrCert(uint16_t & length, char * svrCert ){
+void readSvrCert(uint8_t num, uint16_t & length, char * svrCert ){
 	//Serial.print("readSvrCert len ");
 	preferences.begin("storedVals", true);
-	length = preferences.getInt( "svrCertLen" );
+	length = preferences.getInt( "svrCertLen"+num );
 	//Serial.println( length );
 	uint16_t partIdx;
 	uint16_t partLen;
@@ -387,6 +377,8 @@ void readSvrCert(uint16_t & length, char * svrCert ){
 	preferences.end();
 }
 
+#include "webSocketClient.h"
+
 //https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/protocols/esp_http_server.html
 static esp_err_t cmd_post_handler( httpd_req_t * req ){
 	char content[CMD_BUFF_MAX_LEN];
@@ -401,11 +393,10 @@ static esp_err_t cmd_post_handler( httpd_req_t * req ){
 		return ESP_FAIL;
 	}
 
-	Serial.print("recvd command ");
+	Serial.print("recvd from lclWebPg ");
 	Serial.println( content );
 
-	uint16_t valLen = atoir_n(&content[CMD_LEN-1], 4);
-	uint8_t doCmdRes = doCommand( &content[0], valLen, &content[CMD_LEN] );
+	uint8_t doCmdRes = doCommandsInRecievedData( recv_size, content );
 	if( doCmdRes < 1 )
 		return httpd_resp_send_500(req); //did not understand or was not able to handle the requested cmd
 	Serial.print("doCmdRes " ); Serial.print(doCmdRes);
@@ -424,105 +415,6 @@ bool isAUrl(String str){
 			return true;
 }
 
-
-//not reccomended, though to bypass ESP_ERR_MBEDTLS_SSL_SETUP_FAILED
-//https://github.com/espressif/esp-idf/issues/13109
-//https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig-reference.html#config-esp-tls-insecure
-///.arduino/packages/esp32/tools/esp32-arduino-libs/idf-release_v5.3-083aad99-v2/esp32/sdkconfig
-// CONFIG_ESP_TLS_INSECURE=y
-// CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y
-// CONFIG_WS_OVER_TLS_SKIP_COMMON_NAME_CHECK=y
-#include "esp_websocket_client.h"
-esp_websocket_client_handle_t webSockClient = NULL;
-#include "webSocketClient.h"
-typedef enum{
-	DEV_STATUS   ,
-	DEV_SETTINGS ,
-	IMAGE    
-} PostType;
-uint16_t mainLoopsSinceWebSockStartedConnecting = 0;
-void PostAndFetchDataFromCloudServer(PostType postType){
-
-	if( webSockClient == NULL || !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 10000 ){
-		mainLoopsSinceWebSockStartedConnecting = 0;
-
-
-		preferences.begin("storedVals", true);
-			serverUrlLen = preferences.getBytesLength("svrUrl");
-			preferences.getBytes("svrUrl", serverUrl, serverUrlLen);
-			readSvrCert( serverCertLen, serverCert );
-		preferences.end();
-
-		if( isAUrl(serverUrl) ){
-
-			if( webSockClient != NULL )
-				esp_websocket_client_destroy(webSockClient);
-
-			//https://docs.espressif.com/projects/esp-protocols/esp_websocket_client/docs/latest/index.html
-			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.print( "|" ); Serial.println( serverUrlLen );
-			Serial.print( "Cert Len ");
-			//Serial.print( serverCert );
-			Serial.print("|"); Serial.println( serverCertLen );
-			const esp_websocket_client_config_t ws_cfg = {
-				.uri = serverUrl,//"wss://echo.websocket.org",
-				//.port = 4567,
-				.cert_pem = (const char *)serverCert,
-				.cert_len = serverCertLen + 1,
-				//.subprotocol = 
-				.transport = WEBSOCKET_TRANSPORT_OVER_SSL,
-				.skip_cert_common_name_check = true,
-				
-			};
-			webSockClient = esp_websocket_client_init(&ws_cfg);
-			Serial.println( "webSock cli inited");
-			esp_err_t wEvts = esp_websocket_register_events(webSockClient, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void *)webSockClient);
-			Serial.print( "webSock reg " ); Serial.println( wEvts );
-			wEvts = esp_websocket_client_start(webSockClient);
-			Serial.print("free heap "); Serial.print(esp_get_free_heap_size());
-			Serial.print( "webSock start " ); Serial.println( wEvts );
-
-			//esp_websocket_client_send_text(client, data, len, portMAX_DELAY);
-			/*
-			ESP_LOGI(TAG, "Sending fragmented binary message");
-			char binary_data[5];
-			memset(binary_data, 0, sizeof(binary_data));
-			esp_websocket_client_send_bin_partial(client, binary_data, sizeof(binary_data), portMAX_DELAY);
-			memset(binary_data, 1, sizeof(binary_data));
-			esp_websocket_client_send_cont_msg(client, binary_data, sizeof(binary_data), portMAX_DELAY);
-			esp_websocket_client_send_fin(client, portMAX_DELAY);
-			*/
-
-		}
-	}
-
-	if( esp_websocket_client_is_connected(webSockClient) ){
-		int httpResponseCode;
-		if( postType == DEV_STATUS ){
-			fillStatusString();
-			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
-		}else if( postType == DEV_SETTINGS ){
-			fillSettingsString();
-			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), SETTINGS_RESPONSE_LENGTH, portMAX_DELAY);
-		}else if( postType == IMAGE ){
-			size_t _jpg_buf_len = 0;
-			uint8_t * _jpg_buf = NULL;
-			if( getJpeg( &_jpg_buf, &_jpg_buf_len) != 0 ){
-				Serial.print("send img "); Serial.println( _jpg_buf_len );
-			fillJpegSendHdr( _jpg_buf_len );
-			httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
-			Serial.print("jpgHdr Resp ");Serial.println(httpResponseCode);
-					httpResponseCode = esp_websocket_client_send_cont_msg(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
-			esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
-					freeJpegBuf();
-			}
-		}
-
-		Serial.print("POST resp: ");
-		Serial.println(httpResponseCode);
-	}
-
-	//cloudHttp.end();
-}
 
 void startCameraServer(){
 	if( camera_httpd != NULL )
@@ -557,3 +449,134 @@ void startCameraServer(){
 	Serial.println("Local webpage ready! ");
 	}
 }
+
+
+//not reccomended, though to bypass ESP_ERR_MBEDTLS_SSL_SETUP_FAILED
+//https://github.com/espressif/esp-idf/issues/13109
+//https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig-reference.html#config-esp-tls-insecure
+///.arduino/packages/esp32/tools/esp32-arduino-libs/idf-release_v5.3-083aad99-v2/esp32/sdkconfig
+// CONFIG_ESP_TLS_INSECURE=y
+// CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y
+// CONFIG_WS_OVER_TLS_SKIP_COMMON_NAME_CHECK=y
+#include "esp_websocket_client.h"
+esp_websocket_client_handle_t webSockClient = NULL;
+#include "webSocketClient.h"
+typedef enum{
+	DEV_STATUS   ,
+	DEV_SETTINGS ,
+	IMAGE    
+} PostType;
+uint16_t mainLoopsSinceWebSockStartedConnecting = 0;
+uint8_t svrIdx = 0;
+
+void ReadNextSvrInfo(){
+	preferences.begin("storedVals", true);
+	serverUrlLen = 0;
+	do{
+		Serial.print("reading svrUrl");Serial.println(svrIdx);
+		serverUrlLen = preferences.getBytesLength("svrUrl"+svrIdx);
+		memset( serverUrl, '\0', MAX_SVR_URL_LEN );
+		preferences.getBytes("svrUrl"+svrIdx, serverUrl, serverUrlLen);
+		readSvrCert( svrIdx, serverCertLen, serverCert );
+		svrIdx ++;
+	}while(serverUrlLen < 4 && svrIdx < MAX_NUM_SVRS);
+	preferences.end();
+}
+void PostAndFetchDataFromCloudServer(PostType postType){
+  
+		if(mainLoopsSinceWebSockStartedConnecting > 100  || svrIdx >= MAX_NUM_SVRS){
+			if(webSockClient != NULL ){
+				Serial.println("freeing websocket client");
+				esp_websocket_client_stop(webSockClient);
+    		esp_websocket_client_destroy(webSockClient);
+				
+				Serial.print("finished freeing webSockClient "); Serial.println((int)webSockClient);
+				webSockClient = NULL;
+			}
+			if(svrIdx >= MAX_NUM_SVRS){
+				svrIdx = 0;
+				if( camera_httpd == NULL ){
+					startCameraServer();
+					Serial.println("svrIdx reset");
+				}
+			}
+			if( camera_httpd != NULL ){
+				Serial.print("server at http://");
+				Serial.print( WiFi.localIP() );
+				Serial.print( " on " );
+				Serial.println( foundNetwork );
+			}
+		}
+
+	if( webSockClient == NULL ){//|| !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 10000 ){
+		//attempt connection to server
+		Serial.println("attempt websocket connection");
+    mainLoopsSinceWebSockStartedConnecting = 0;
+    
+		ReadNextSvrInfo();
+		
+		if( isAUrl(serverUrl) ){
+
+			if( webSockClient != NULL ){
+				esp_websocket_client_destroy(webSockClient);
+				Serial.println("esp_websocket_client_destroy");
+			}
+
+			//https://docs.espressif.com/projects/esp-protocols/esp_websocket_client/docs/latest/index.html
+			Serial.print( "WebSock to " ); Serial.print( serverUrl ); Serial.print( "|" ); Serial.println( serverUrlLen );
+			Serial.print( "Cert Len ");
+			//Serial.print( serverCert );
+			Serial.print("|"); Serial.println( serverCertLen );
+			const esp_websocket_client_config_t ws_cfg = {
+				.uri = serverUrl,//"wss://echo.websocket.org",
+				//.port = 4567,
+				.cert_pem = (const char *)serverCert,
+				.cert_len = serverCertLen + 1,
+				//.subprotocol = 
+				.transport = WEBSOCKET_TRANSPORT_OVER_SSL,
+				.skip_cert_common_name_check = true,
+				
+			};
+			webSockClient = esp_websocket_client_init(&ws_cfg);
+			Serial.println( "webSock cli inited");
+			  esp_err_t wEvts = esp_websocket_register_events(webSockClient, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void *)webSockClient);
+			  Serial.print( "webSock reg " ); Serial.println( wEvts );
+			  wEvts = esp_websocket_client_start(webSockClient);
+			Serial.print("free heap "); Serial.print(esp_get_free_heap_size());
+			  Serial.print( "webSock start " ); Serial.println( wEvts );
+
+		}
+	}
+
+	if( esp_websocket_client_is_connected(webSockClient) ){
+    //send a message to server 
+		Serial.print("send message to server ");
+		int httpResponseCode;
+		if( postType == DEV_STATUS ){
+			fillStatusString();
+			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
+		}else if( postType == DEV_SETTINGS ){
+			fillSettingsString();
+			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), SETTINGS_RESPONSE_LENGTH, portMAX_DELAY);
+		}else if( postType == IMAGE ){
+			size_t _jpg_buf_len = 0;
+			uint8_t * _jpg_buf = NULL;
+			if( getJpeg( &_jpg_buf, &_jpg_buf_len) != 0 ){
+				Serial.print("send img "); Serial.println( _jpg_buf_len );
+			fillJpegSendHdr( _jpg_buf_len );
+			httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
+			Serial.print("jpgHdr Resp ");Serial.println(httpResponseCode);
+					httpResponseCode = esp_websocket_client_send_cont_msg(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
+			esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
+					freeJpegBuf();
+			}
+		}
+
+		Serial.print("POST resp: ");
+		Serial.println(httpResponseCode);
+	}
+
+	//cloudHttp.end();
+}
+
+
