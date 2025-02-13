@@ -27,6 +27,8 @@
 #define NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND 100
 extern int activelyCommanded;
 
+extern bool settingsRequested;
+
 uint16_t atoir_n( const char * c, uint8_t n );
 
 uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value );

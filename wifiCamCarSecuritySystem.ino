@@ -73,6 +73,7 @@ void ArmAlarm(bool enable){
 
 int activelyCommanded = 0;
 uint16_t connectionAttempts = 0;
+bool settingsRequested = false;
 
 #include "wifiConnection.h"
 #include "webserver.h"

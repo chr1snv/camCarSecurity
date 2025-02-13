@@ -16,7 +16,7 @@ import threading
 import ssl
 import sys
 import time
-import datetime
+from datetime import datetime, timezone
 import io
 import re
 import os
@@ -39,16 +39,18 @@ def get_ssl_context(certfile, keyfile):
 class Device:
 
 	def __init__(self):
+	
+		self.devId = 1
 
 		self.lastImage = b''
 		self.lastImageLength = 0
-		self.lastImageTime = datetime.datetime.now()
+		self.lastImageTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 		self.postSettings = b''
-		self.lastSettingsTime = datetime.datetime.now()
+		self.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 		self.postStatus = b''
-		self.lastStatusTime = datetime.datetime.now()
+		self.lastStatusTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 		self.alarmArmed        = ""
 		self.magAX             = ""
@@ -71,7 +73,7 @@ class Device:
 
 	def fillValues(self, postStr):
 		self.postStatus = postStr
-		self.lastStatusTime = datetime.datetime.now()
+		self.lastStatusTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 		self.alarmArmed        = postStr[-80:-75]
 		self.magAX             = postStr[-75:-70]
@@ -113,13 +115,13 @@ class Device:
 
 	def fillSettings(self, datStr):
 		self.lastSettings =  postStr
-		self.lastSettingsTime = datetime.datetime.now()
+		self.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 	def fillImage(self, datStr, datStrLen):
 		#print( "last image len %i datStrLen %i " % (len(datStr), datStrLen )  )
 		self.lastImage = datStr
 		self.lastImageLength = datStrLen
-		self.lastImageTime = datetime.datetime.now()
+		self.lastImageTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 
 device = Device()
 
@@ -180,13 +182,21 @@ def atoir_n( c, n ):
 
 #print( "atoir_n( \" 12\", 3 ) %i\n" % atoir_n( " 12", 3 ) )
 
+def lPadStr(n, chars):
+	bStr = str(chars).encode('utf-8') #left pad, another option may be str.rjust(10, '0')
+	return bytes(n-len(bStr)) + bStr
+	
+def rPadStr(n, chars):
+	bStr = str(chars).encode('utf-8') #left pad, another option may be str.rjust(10, '0')
+	return bStr + bytes(n-len(bStr))
+
 #https://www.optimizationcore.com/coding/websocket-python-parsing-binary-frames-from-a-tcp-socket/
 async def websocketHandler(websocket):
 	async for msg in websocket:#for _ in range(3):
 		#msg = await websocket.read_message()#frame(4096)
 		#print(msg)
 		#async for msg in websocket:
-		rcvTime = datetime.datetime.now()
+		rcvTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		#print(dir(websocket))
 		#msgOpcode = 
 		msgLen = len(msg)
@@ -198,7 +208,7 @@ async def websocketHandler(websocket):
 		cmdIdx = 0
 		fromDorC = msg[1]
 		if fromDorC == ord('d'):
-			print("websock rcv %s %c numCmd: %i msgLen: %i " % ( rcvTime.strftime("%H:%M:%S-%f"), fromDorC, numCmd, msgLen) )
+			print("websock rcv %s %c numCmd: %i msgLen: %i " % ( rcvTime, fromDorC, numCmd, msgLen) )
 		mIdx = 2
 		while cmdIdx < numCmd:
 			#print( "datType %s" % msg[mIdx:mIdx+11] )
@@ -223,16 +233,25 @@ async def websocketHandler(websocket):
 					device.fillImage( datStr, datLen )
 			else: #from client (browser http page)
 				if datType.startswith(b'status'):
-					#print( device.postStatus )
-					await websocket.send( b'1sStat          0    80' + device.postStatus + device.lastStatusTime.strftime("%H:%M:%S-%f").encode('utf-8') )
+					#print( 'sending status ' + str(len(device.postStatus)) )
+					timeStr = str(device.lastStatusTime).encode('utf-8')
+					bytesToSend = b'2s' + \
+						rPadStr(11,'Stat') + lPadStr(4, str(device.devId)) + lPadStr(6, str(len(device.postStatus)) ) + device.postStatus + \
+						rPadStr(11,'Time') + lPadStr(4, str(device.devId)) + lPadStr(6, str(len(timeStr)) ) + timeStr
+					#print( 'stat bytes to send ' + str(bytesToSend) )
+					await websocket.send( bytesToSend )
 				elif datType.startswith(b'settings'):
 					setLen = str(len(device.postSettings)).encode('utf-8')
-					setLen = bytes(6-len(setLen)) + setLen
-					await websocket.send( b'1sSet           0' + setLen + device.postSettings + device.lastSettingsTime.strftime("%H:%M:%S-%f").encode('utf-8') )
+					setLen = bytes(6-len(setLen)) + setLen #left pad set len another option may be str.rjust(10, '0')
+					#print( 'sending settings' )
+					await websocket.send( b'1sSet           0' + setLen + device.postSettings + str(device.lastSettingsTime).encode('utf-8') )
 				elif datType.startswith(b'image'):
 					#print(device.lastImage)
 					#print("sending image to browser %i " % len(device.lastImage) )
-					await websocket.send( device.lastImage )
+					#print( 'sending img' )
+					bytesToSend = b'1s' + \
+						rPadStr(11,'Img') + lPadStr(4, str(device.devId)) + lPadStr(6, str(len(device.lastImage)) ) + device.lastImage
+					await websocket.send( bytesToSend )
 				else:
 					cmd = datType
 					val = datStr
@@ -314,7 +333,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			self.send_header('Content-type','text/html')
 			self.end_headers()
 
-			now = datetime.datetime.now()
+			now = datetime.now()
 
 			output = io.StringIO()
 
@@ -351,7 +370,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			#cv2.imshow("esp32img", img)
 			device.lastImage = post_data
 			device.lastImageLength = content_length
-			device.lastImageTime = datetime.datetime.now()
+			device.lastImageTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 			#demonstation that the images are being recieved to the server uncorrupted
 			#with open(str(device.lastImageTime)[-5:]+".jpeg", "wb") as file:
 			#	file.write(post_data)
@@ -364,7 +383,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		elif self.headers["Content-Type"] == "text/settings":
 			postStr = post_data.decode("utf-8")
 			device.lastSettings =  postStr
-			device.lastSettingsTime = datetime.datetime.now()
+			device.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		elif self.headers["Content-Type"] == "text/status": #status or settings fixed length string
 			postStr = post_data.decode("utf-8")
 			#print("post_data " + postStr )

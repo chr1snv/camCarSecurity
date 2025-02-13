@@ -33,7 +33,11 @@
 	</style>
 	</head>
 	<body>
-	<h1>ESP32-CAM Car Alarm</h1>
+	<div align="left" style="width:100%">
+	<a href="/" >< All devices</a>
+	</div>
+	<h1>Device Id:</h1>
+	<h2 id="devId"></h2>
 	<img src="" id="photo" >
 	<h3 id="networkAuthText"></h3>
 	<a id="networkAuthLink"></a>
@@ -60,12 +64,19 @@
 	</table>
 	<table>
 		<tr>
-			<td ><button id="armAlarmButton" class="button" onclick="sendCmd('ArmAlarm');">Arm Alarm</button></td>
-			<td ><button id="disarmAlarmButton" class="button" onclick="sendCmd('DisarmAlarm');">Disarm Alarm</button></td>
+			<td ><button id="armAlarmButton" class="button" onclick="ArmDisarmAlarm('ArmAlarm');">Arm Alarm</button></td>
+			<td ><button id="disarmAlarmButton" class="button" onclick="ArmDisarmAlarm('DisarmAlarm');">Disarm Alarm</button></td>
 		</tr>
 	</table>
 	<br/>
-	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">>System Status</h2>
+	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">>Status</h2>
+	<table>
+		<tr>
+			<td><h4 id ="lclTime"></h4></td>
+			<td><h4 id="time"></h4></td>
+			<td><h4 id="timeDiff"></h4><td>
+		</tr>
+	</table>
 	<table id="statusDisp" style="border:1px sold;">
 		<tr>
 			<th>alarm armed</th>
@@ -104,7 +115,7 @@
 			<th>Mag Alarm Diff</th>
 			<th>Mag Alrm Trgr</th>
 			<th>Alarm Output</th>
-			<th>Stat Ping</th>
+			<th>Svr Ping</th>
 		</tr>
 		<tr>
 			<td id="magHeading"></td>
@@ -163,10 +174,10 @@
 				<td><button onclick="camRot90(0);">No Rotate</button></td>
 			</tr>
 			<tr>
-				<td><button onclick="sendCmd('camResolution', 'QVGA');">QVGA</button></td>
-				<td><button onclick="sendCmd('camResolution', 'CIF');">CIF</button></td>
-				<td><button onclick="sendCmd('camResolution', 'VGA');">VGA</button></td>
-				<td><button onclick="sendCmd('camResolution', 'SVGA');">SVGA</button></td>
+				<td><button onclick="sendCmd('camRes', 'QVGA');">QVGA</button></td>
+				<td><button onclick="sendCmd('camRes', 'CIF');">CIF</button></td>
+				<td><button onclick="sendCmd('camRes', 'VGA');">VGA</button></td>
+				<td><button onclick="sendCmd('camRes', 'SVGA');">SVGA</button></td>
 			</tr>
 			</table>
 		</div>
@@ -187,14 +198,7 @@
 		
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
-		function sendCmd(x, val, valLen=0) {
-			if( val == undefined ){
-				val = ''
-				valLen = 0
-			}
-			let sendStr = "1c"+(x).padEnd(11)+"0".padStart(4)+(valLen.toString()).padStart(6)+val;
-			sendWebsocketServerMessage(sendStr);
-			//xhr.send(sendStr);
+		function ArmDisarmAlarm(x){
 			if(x == "ArmAlarm"){
 				document.getElementById("armAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 				document.getElementById("disarmAlarmButton").style.backgroundColor = clickableButtonBgColor;
@@ -202,6 +206,19 @@
 				document.getElementById("armAlarmButton").style.backgroundColor = clickableButtonBgColor;
 				document.getElementById("disarmAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 			}
+			sendCmd(x);
+		}
+		
+		function sendCmd(x, val, valLen=0) {
+			if( val == undefined ){
+				val = ''
+				valLen = 0
+			}
+			else if( valLen == 0 ){
+				valLen = val.length;
+			}
+			let sendStr = "1c"+(x).padEnd(11)+"0".padStart(4)+(valLen.toString()).padStart(6)+val;
+			sendWebsocketServerMessage(sendStr);
 		}
 
 		function sendMagThreshold(){
@@ -269,11 +286,39 @@
 		function sFBa(b){
 			return td.decode(b);
 		}
-
-		function DisplaySettings(txt){
 		
-			let a = txt;
-			let rL = a.length;
+		//ascii to int reverse iteration for n characters
+		//input is end of number (1's place)
+		//counts up in significance (x10), decrementing string index from start index
+		function atoir_n( c, n ){
+			let accum = 0;
+			let mult = 1;
+			let cLIdx = c.length-1;
+			//Serial.print( "atoir_n d ");
+			for( let i = 0; i < n; ++i ){
+				let d = c[cLIdx-i];
+				if( d >= '0' && d <= '9' )
+					accum += (d - '0')*mult;
+				else
+					break;
+				mult *= 10;
+			}
+			return accum;
+		}
+		
+		function DisplayTime( bArr ){
+			let lclTime = Date.now();
+			let lastDevTime = parseInt(sFBa( bArr ));
+			let diff = lclTime - lastDevTime;
+			document.getElementById("lclTime").innerText = lclTime;
+			document.getElementById( "time" ).innerText = lastDevTime;
+			document.getElementById( "timeDiff" ).innerText = diff;
+		}
+
+		function DisplaySettings(bArr){
+		
+			let a = bArr;
+			let rL = bArr.byteLength;
 			if( rL < 10)
 				return; //avoid printing undefined
 
@@ -293,7 +338,7 @@
 
 		}
 		
-		function DisplayStatus(txt){
+		function DisplayStatus(bArr){
 
 			const now = new Date();
 			const diff = now - timeRequestedStatus;
@@ -302,8 +347,8 @@
 
 			++numStatusRequests;
 
-			let a = txt;
-			let rL = txt.length;
+			let a = bArr;
+			let rL = bArr.byteLength;
 			if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
 				return;
 
@@ -375,28 +420,46 @@
 						(response.size != undefined && response.size <= 0 ) )
 						return;
 					//console.log("socketInstance.onmessage " + response);
+					
+					//parse the num data, from, and data fields from the server
+					//|numData(1) | 'd','s','c','l'(1) ||||dataTypeStr (11) | deviceFromId(4) | dataLen(6) | data |||
+					//||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
+					let datIdx = 0;
+					let numData = Number.parseInt(new TextDecoder().decode( response.slice(0,1) )); datIdx += 1;
+					//console.log("num data " + numData);
+					let respFrom = new TextDecoder().decode( response.slice(datIdx,datIdx+1) ); datIdx+=1;
+					//console.log("respFrom " + respFrom);
+					
+					for(let dNum=0; dNum < numData; ++dNum ){
 
-					let respType = new TextDecoder().decode( response.slice(2,12) );
-					let respLen = Number.parseInt(new TextDecoder().decode( response.slice(23-6,23) ));
-					let resp = response.slice(23,23+respLen);
-					let respStr = new TextDecoder().decode( resp );
-					console.log( respStr );
-					if( respType.startsWith("Stat") ){
-						DisplayStatus( resp );
-					}else if( respType.startsWith("Set") ){
-						DisplaySettings( resp );
-					}else{// if( respType.startsWith("Image") ){
-						//https://gist.github.com/candycode/f18ae1767b2b0aba568e
-						let arrayBufferView = new Uint8Array( response );
-						let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
-						let urlCreator = window.URL || window.webkitURL;
-						let imageUrl = urlCreator.createObjectURL( blob );
-						let img = document.querySelector( "#photo" );
-						img.src = imageUrl;//xhr.response;
-						camRot90(rot90);
-					}//else{
-					//	console.log( respType );
-					//}
+						let datType = new TextDecoder().decode( response.slice(datIdx,datIdx+11) ); datIdx += 11;
+						//console.log("datType " + datType);
+						let datFromDev = new TextDecoder().decode( response.slice(datIdx,datIdx+4) ); datIdx += 4;
+						//console.log("datFromDev " + datFromDev);
+						let datLen = atoir_n( new TextDecoder().decode( response.slice(datIdx,datIdx+6) ), 6 ); datIdx += 6;
+						//console.log("datLen " + datLen);
+						let dat = response.slice(datIdx,datIdx+datLen); datIdx += datLen;
+						let datStr = new TextDecoder().decode( dat );
+						if( datType.startsWith("Time") ){
+							DisplayTime( dat );
+						}else if( datType.startsWith("Stat") ){
+							DisplayStatus( dat );
+						}else if( datType.startsWith("Set") ){
+							DisplaySettings( dat );
+						}else if( datType.startsWith("Img") && datLen > 0){
+							//https://gist.github.com/candycode/f18ae1767b2b0aba568e
+							let arrayBufferView = new Uint8Array( dat );
+							let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
+							let urlCreator = window.URL || window.webkitURL;
+							let imageUrl = urlCreator.createObjectURL( blob );
+							let img = document.querySelector( "#photo" );
+							img.src = imageUrl;//xhr.response;
+							camRot90(rot90);
+						}//else{
+						//	console.log( respType );
+						//}
+						
+					}
 					
 				}
 			}else{
