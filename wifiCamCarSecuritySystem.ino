@@ -171,7 +171,8 @@ void loop() {
 			}
 		}
 		if(sendData){
-			PostAndFetchDataFromCloudServer(IMAGE);  //send image
+      if( activelyCommanded > 0 ) //only send when commanded to save bandwidth
+			  PostAndFetchDataFromCloudServer(IMAGE);  //send image
 			PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
 		}
     	--activelyCommanded;

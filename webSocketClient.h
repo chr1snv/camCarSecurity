@@ -16,6 +16,14 @@ void log_error_if_nonzero(String s, int v);
 extern uint16_t payloadLen;
 extern const char * payload;
 
+//not reccomended, though to bypass ESP_ERR_MBEDTLS_SSL_SETUP_FAILED
+//https://github.com/espressif/esp-idf/issues/13109
+//https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig-reference.html#config-esp-tls-insecure
+///.arduino/packages/esp32/tools/esp32-arduino-libs/idf-release_v5.3-083aad99-v2/esp32/sdkconfig
+// CONFIG_ESP_TLS_INSECURE=y
+// CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y
+// CONFIG_WS_OVER_TLS_SKIP_COMMON_NAME_CHECK=y
+
 
 static void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {

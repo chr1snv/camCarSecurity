@@ -30,6 +30,7 @@ void printPayload( uint16_t start, uint16_t end, const char * payload ){
 	Serial.print("|\n");
 }
 
+uint8_t lastReadPktIdx = 0;
 uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 	uint8_t retVal; 
 
@@ -37,18 +38,28 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 	if ( payloadLen > WEB_SEND_HDR_LEN-1 ){
 		Serial.print( "pLen "); Serial.println( payloadLen );
 		//numData can be 0-9 (one ascii digit)
-		//|numData(1) | 'd'(1) |dataTypeStr (11) | deviceId(4) | dataLen(6) | data
-		printPayload( 0, min( (uint16_t)(WEB_SEND_HDR_LEN), payloadLen ), payload );
+		//pktIdx(3) deviceId(4) | numData(1) | 'd'(1) || dataTypeStr (11) | dataLen(6) | data ||
+		//printPayload( 0, min( (uint16_t)(WEB_SEND_HDR_LEN), payloadLen ), payload );
 		
-		uint8_t numData = payload[0] - '0';
-		char from = payload[1];
+		uint16_t idx = 0;
+		uint8_t pktIdx = atoir_n( &payload[idx+2], 3 ); idx +=3;
+		Serial.print(" pktIdx ");
+		Serial.println( pktIdx );
+		if(pktIdx == lastReadPktIdx){
+			lastReadPktIdx = pktIdx;
+			return 0;
+		}else{
+			lastReadPktIdx = pktIdx;
+		}
+		uint16_t fromDevId = atoir_n( &payload[idx+4], 4 ); idx += 4;
+		uint8_t numData = payload[idx] - '0'; idx += 1;
+		char from = payload[idx]; idx += 1;
 		Serial.print(" numData ");
 		Serial.println( numData );
 		
 		if( numData > 0 && numData < 10 ){ // a number of commands was recieved
 			activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 			//do all recieved commands
-			uint16_t idx = 2;
 			for( uint8_t i = 0; i < numData; ++i ){
 				Serial.print("i "); Serial.println(i);
 				printPayload( idx, min( (uint16_t)(idx+WEB_SEND_HDR_LEN), payloadLen ), payload );
@@ -62,7 +73,7 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 				Serial.print( " datDatIdx " ); Serial.print( datDatIdx );
 				Serial.print( " datLen "); Serial.println( datLen );
 				retVal = doCommand( &(payload[datTypeIdx]), datLen, &(payload[datDatIdx]) );
-				idx += datDatIdx + datLen;
+				idx = datDatIdx + datLen;
 				Serial.print( " idx " ); Serial.println( idx );
 			}
 		}

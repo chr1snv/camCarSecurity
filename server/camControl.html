@@ -36,7 +36,7 @@
 	<div align="left" style="width:100%">
 	<a href="/" >< All devices</a>
 	</div>
-	<h1>Device Id:</h1>
+	<h1>Device</h1>
 	<h2 id="devId"></h2>
 	<img src="" id="photo" >
 	<h3 id="networkAuthText"></h3>
@@ -69,14 +69,24 @@
 		</tr>
 	</table>
 	<br/>
-	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">>Status</h2>
+	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">v Status</h2>
 	<table>
 		<tr>
-			<td><h4 id ="lclTime"></h4></td>
-			<td><h4 id="time"></h4></td>
-			<td><h4 id="timeDiff"></h4><td>
+			<!--<th>Local Time</th>
+			<th>Last Device</th>-->
+			<th>Secs since Dev Pkt</th>
+			<th>Svr Ping (milliSecs)</th>
+			<th>Pkt Num</th>
+		</tr>
+		<tr>
+			<!--<td><h4 id ="lclTime"></h4></td>
+			<td><h4 id="time"></h4></td>-->
+			<td id="timeDiff"></td>
+			<td id="statusPing"></td>
+			<td id="pktNum"></td>
 		</tr>
 	</table>
+	<br/><br/><br/>
 	<table id="statusDisp" style="border:1px sold;">
 		<tr>
 			<th>alarm armed</th>
@@ -115,14 +125,12 @@
 			<th>Mag Alarm Diff</th>
 			<th>Mag Alrm Trgr</th>
 			<th>Alarm Output</th>
-			<th>Svr Ping</th>
 		</tr>
 		<tr>
 			<td id="magHeading"></td>
 			<td id="magAlarmDiff"></td>
 			<td id="magAlarmTrgr"></td>
 			<td id="alarmOutput"></td>
-			<td id="statusPing"></td>
 		</tr>
 	</table>
 	<h2 onclick="toggleDisp(this, 'settingsDisp')" style="cursor: pointer;">> Settings</h2>
@@ -140,21 +148,6 @@
 				<td id="camResolution"></td>
 				<td id="txPower"></td>
 			</tr>
-		</table>
-		<table>
-			<tr>
-				<th>Server Url</th>
-				<td><input id="svrUrl" type="text"></input></td>
-				
-				<td><button onClick="sendCmd('svrUrl', document.getElementById('svrUrl').value ); sendCmd('svrCert', document.getElementById('svrCert').value );">Set</button></td>
-				<td><button onClick="sendCmd('setSvr', ''); sendCmd('svrCert', '');">Clear</button></td>
-			</tr>
-			<tr>
-				<th>Server Cert</th>
-				<td><textarea id="svrCert" cols="80" rows="10"></textarea></td>
-			</tr>
-		</table>
-		<table id="storedSsidsTable">
 		</table>
 		<table>
 			<tr>
@@ -180,19 +173,23 @@
 				<td><button onclick="sendCmd('camRes', 'SVGA');">SVGA</button></td>
 			</tr>
 			</table>
+			<table id="storedSvrUrlTable">
+			</table>
+			<table id="storedSsidsTable">
+			</table>
 		</div>
 		<script>
 		const MAX_STORED_NETWORKS = 10;
 		
 		function toggleDisp(titleElm, elmId){
 			let elm = document.getElementById(elmId);
-			let title = titleElm.textContent.slice(1);
+			let title = titleElm.textContent.slice(2);
 			if( elm.style.length > 0 ){
 				elm.style = "";
-				titleElm.textContent = "v" + title;
+				titleElm.textContent = "v " + title;
 			}else{
 				elm.style = "display:none;";
-				titleElm.textContent = ">" + title;
+				titleElm.textContent = "> " + title;
 			}
 		}
 		
@@ -209,16 +206,25 @@
 			sendCmd(x);
 		}
 		
-		function sendCmd(x, val, valLen=0) {
-			if( val == undefined ){
-				val = ''
-				valLen = 0
+		let pktIdx = 0;
+		function sendCmd(datType, dat, datLen=0) {
+			if( dat == undefined ){
+				dat = ''
+				datLen = 0
 			}
-			else if( valLen == 0 ){
-				valLen = val.length;
+			else if( datLen == 0 ){
+				datLen = dat.length;
 			}
-			let sendStr = "1c"+(x).padEnd(11)+"0".padStart(4)+(valLen.toString()).padStart(6)+val;
+			let pktIdxStr = pktIdx.toString().padStart(3);
+			let devIdStr = "0".padStart(4);
+			let numDatAndDevType = "1c";
+			let datTypeStr = datType.padEnd(11);
+			let datLenStr = (datLen.toString()).padStart(6);
+			let sendStr = pktIdxStr+devIdStr + numDatAndDevType+datTypeStr+datLenStr+dat;
 			sendWebsocketServerMessage(sendStr);
+			pktIdx += 1;
+			if( pktIdx > 255 )
+				pktIdx = 0
 		}
 
 		function sendMagThreshold(){
@@ -263,12 +269,42 @@
 				<th>Pass"+i+"</th>\
 				<td><input id='pass"+i+"' type='text'></input></td>\
 				<td><button onClick=\"sendWifi_SSID_Pass("+i+")\">Set</button></td>\
-				<td><button onClick=\"clearWifi_SSID_Pass("+i+")\">Clear</button></td>\
 				</tr>\
 				";
 				ssidsTable.innerHTML += ssidTr;
 			}
 		}
+		
+		
+		function genSvrEntryTable(){
+			let svrUrlTable = document.getElementById("storedSvrUrlTable");
+			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
+				let svrUrlTbl = 
+					'<table>\
+							<tr>\
+								<th>Server Url'+i+'</th>\
+							</tr>\
+							<tr><td>\
+								<table>\
+									<tr>\
+										<td><input id="svrUrlVal'+i+'" type="text"></input></td>\
+										<td><button onclick="sendSvrUrl('+i+')">Set Cloud Server Url (wss://<ip or url>:port)</button></td>\
+									</tr>\
+								</table>\
+							</td></tr>\
+						</table>\
+						<table>\
+							<tr>\
+								<td><textarea id="svrCert'+i+'" cols="80" rows="10"></textarea></td>\
+							</tr>\
+							<tr>\
+								<td><button onclick="sendSvrCert('+i+')">Set Cloud Server Cert</button></td>\
+							</tr>\
+						</table>';
+				svrUrlTable.innerHTML += svrUrlTbl;
+			}
+		}
+		genSvrEntryTable();
 
 		//window.onload = document.getElementById("photo").src = window.location.href.slice(0, -1) + ":81/stream";
 
@@ -310,9 +346,9 @@
 			let lclTime = Date.now();
 			let lastDevTime = parseInt(sFBa( bArr ));
 			let diff = lclTime - lastDevTime;
-			document.getElementById("lclTime").innerText = lclTime;
-			document.getElementById( "time" ).innerText = lastDevTime;
-			document.getElementById( "timeDiff" ).innerText = diff;
+			//document.getElementById("lclTime").innerText = lclTime;
+			//document.getElementById( "time" ).innerText = lastDevTime;
+			document.getElementById( "timeDiff" ).innerText = diff/1000;
 		}
 
 		function DisplaySettings(bArr){
@@ -340,10 +376,12 @@
 		
 		function DisplayStatus(bArr){
 
-			const now = new Date();
-			const diff = now - timeRequestedStatus;
-			document.getElementById("statusPing").innerText = diff;
-			inProgressRequest = false;
+			if( timeRequestedStatus != null ){
+				const now = new Date();
+				const diff = now - timeRequestedStatus;
+				document.getElementById("statusPing").innerText = diff;
+				inProgressRequest = false;
+			}
 
 			++numStatusRequests;
 
@@ -373,7 +411,6 @@
 			document.getElementById("alarmOutput").innerText	= parseInt(sFBa(a.slice(75, 75+5)));
 	
 		}
-		
 		
 		
 		let lastNetworkUpdateTime = 0;
@@ -422,24 +459,26 @@
 					//console.log("socketInstance.onmessage " + response);
 					
 					//parse the num data, from, and data fields from the server
-					//|numData(1) | 'd','s','c','l'(1) ||||dataTypeStr (11) | deviceFromId(4) | dataLen(6) | data |||
+					//|pktNum(3)|numData(1) | 'd','s','c','l'(1) ||||dataTypeStr (11) | deviceFromId(4) | dataLen(6) | data |||
 					//||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
 					let datIdx = 0;
-					let numData = Number.parseInt(new TextDecoder().decode( response.slice(0,1) )); datIdx += 1;
+					let pktNum = atoir_n(td.decode( response.slice(0,3) ), 3 ); datIdx += 3;
+					document.getElementById("pktNum").innerText = pktNum;
+					let pktFromDeviceId = atoir_n( td.decode( response.slice(3,7) ), 4 ); datIdx += 4;
+					document.getElementById('devId').innerText = pktFromDeviceId;
+					let numData = Number.parseInt(td.decode( response.slice(datIdx,datIdx+1) )); datIdx += 1;
 					//console.log("num data " + numData);
-					let respFrom = new TextDecoder().decode( response.slice(datIdx,datIdx+1) ); datIdx+=1;
+					let respFrom = td.decode( response.slice(datIdx,datIdx+1) ); datIdx+=1;
 					//console.log("respFrom " + respFrom);
 					
 					for(let dNum=0; dNum < numData; ++dNum ){
 
-						let datType = new TextDecoder().decode( response.slice(datIdx,datIdx+11) ); datIdx += 11;
+						let datType = td.decode( response.slice(datIdx,datIdx+11) ); datIdx += 11;
 						//console.log("datType " + datType);
-						let datFromDev = new TextDecoder().decode( response.slice(datIdx,datIdx+4) ); datIdx += 4;
-						//console.log("datFromDev " + datFromDev);
-						let datLen = atoir_n( new TextDecoder().decode( response.slice(datIdx,datIdx+6) ), 6 ); datIdx += 6;
+						let datLen = atoir_n( td.decode( response.slice(datIdx,datIdx+6) ), 6 ); datIdx += 6;
 						//console.log("datLen " + datLen);
 						let dat = response.slice(datIdx,datIdx+datLen); datIdx += datLen;
-						let datStr = new TextDecoder().decode( dat );
+						let datStr = td.decode( dat );
 						if( datType.startsWith("Time") ){
 							DisplayTime( dat );
 						}else if( datType.startsWith("Stat") ){
@@ -487,6 +526,7 @@
 
 		//variables to wait for response
 		var inProgressRequest = false;
+		var timeRequestedStatus = null;
 		var numLoopsInProgress = 0;
 		const MaxProgressLoops = 10;
 
@@ -498,12 +538,16 @@
 				
 				
 				if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
-					sendWebsocketServerMessage("1csettings      0     0");
+					sendCmd("settings");
+					//sendCmd(datType, dat, datLen=0) 
+					//sendWebsocketServerMessage("1csettings      0     0");
 					numStatusRequests = 0;
 				}else{
 					timeRequestedStatus = new Date()
-					sendWebsocketServerMessage("1cstatus        0     0");
-					sendWebsocketServerMessage("1cimage         0     0");
+					sendCmd("status");
+					sendCmd("image");
+					//sendWebsocketServerMessage("1cstatus        0     0");
+					//sendWebsocketServerMessage("1cimage         0     0");
 				}
 				
 				inProgressRequest = true;
@@ -520,9 +564,10 @@
 
 		fillStoredSSIDsTable();
 		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
-		setInterval(MainLoop, 100); //100ms (10x a second)
+		setInterval(MainLoop, 10000); //100ms (10x a second)
 		camRot90(true);
 		
+		/*
 		buf = []
 		function fillStringWithRandomASCII( buf, len){
 			
@@ -542,6 +587,7 @@
 			}
 		}
 		fillStringWithRandomASCII( buf, 2);
+		*/
 		
 		
 		</script>

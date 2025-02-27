@@ -28,12 +28,30 @@ from netifaces import interfaces, ifaddresses, AF_INET
 
 #import json
 
+certfile = "cert.pem"
+keyfile = "key.pem"
+
 def get_ssl_context(certfile, keyfile):
 	context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 	context.load_cert_chain(certfile, keyfile)
 	context.set_ciphers("@SECLEVEL=1:ALL")
 	return context
+	
 
+async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
+	if( pktNum >= 256 ):
+		pktNum = 0
+	sendHdr = lPadStr(3, str(pktNum) ) + lPadStr(4, str(fromDevId))
+	sendBytes = b''
+	for dInf in datInfoArr: #datInfoArr datType, datLen, dat
+		#print(dInf)
+		datType = dInf[0]
+		datLen = dInf[1]
+		dat = dInf[2]
+		sendBytes += rPadStr(11, datType) + lPadStr(6, str(datLen)) + dat
+	await wSocket.send( sendHdr + str(len(datInfoArr)).encode('utf-8') + 's'.encode('utf-8') + sendBytes )
+	pktNum += 1
+	return pktNum
 
 #last status
 class Device:
@@ -41,6 +59,10 @@ class Device:
 	def __init__(self):
 	
 		self.devId = 1
+		
+		self.wSock = None
+		
+		self.sendPktIdx = 0
 
 		self.lastImage = b''
 		self.lastImageLength = 0
@@ -70,6 +92,12 @@ class Device:
 		self.magAlarmDiff      = ""
 		self.magAlarmTriggered = ""
 		self.alarmOutput       = ""
+
+	async def send( self, fromDevId, datInfoArr ):
+		if self.wSock != None:
+			print("send to device " )
+			print(datInfoArr)
+			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
 
 	def fillValues(self, postStr):
 		self.postStatus = postStr
@@ -123,29 +151,42 @@ class Device:
 		self.lastImageLength = datStrLen
 		self.lastImageTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 
+class Client:
+	def __init__(self):
+		self.sendPktIdx = 0
+		self.wSock = None
+	async def send( self, fromDevId, datInfoArr ):
+		if self.wSock != None:
+			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
+	
+svrDevId = 1
 device = Device()
+client = Client()
 
 #pending commands
 cmds = []
 
 def GetCommandListBytes():
 	global cmds
-	output = io.BytesIO()
+	#output = io.BytesIO()
 	numCmdsToSend = min(9, len(cmds))
-	output.write( str(numCmdsToSend).encode('utf-8') ) #number of commands
-	output.write( b's' ) #commands are from server
+	#output.write( str(numCmdsToSend).encode('utf-8') ) #number of commands
+	#output.write( b's' ) #commands are from server
+	retArr = []
 	for cmdIdx in range(0,numCmdsToSend):
 		cmd = cmds[cmdIdx]
 		cmdPart = (cmd[0])[:11]
-		output.write( cmdPart + bytes(11-len(cmdPart)) ) #command
-		output.write( bytes(4-1) + b'0') #device id
-		lenDat = str(len(cmd[1])).encode('utf-8')
-		output.write( bytes(6-len(lenDat))+lenDat)
+		#output.write( cmdPart + bytes(11-len(cmdPart)) ) #command
+		#output.write( bytes(4-1) + b'0') #device id
+		#lenDat = str(len(cmd[1])).encode('utf-8')
+		#output.write( bytes(6-len(lenDat))+lenDat)
 		dat = (cmd[1])
-		output.write( dat )
+		#output.write( dat )
+		retArr.append( (cmdPart, len(dat), dat) )
 	cmds = cmds[numCmdsToSend:] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
-	outBytes = output.getvalue()#.encode('utf-8')
-	return outBytes
+	#outBytes = output.getvalue()#.encode('utf-8')
+	#print( 'sending Cmds %s' % outBytes )
+	return retArr#outBytes
 
 def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
@@ -187,14 +228,18 @@ def lPadStr(n, chars):
 	return bytes(n-len(bStr)) + bStr
 	
 def rPadStr(n, chars):
-	bStr = str(chars).encode('utf-8') #left pad, another option may be str.rjust(10, '0')
+	if type(chars) == type(b''):
+		bStr = chars
+	else:
+		bStr = str(chars).encode('utf-8') #left pad, another option may be str.rjust(10, '0')
+	print("bStr %s len %i" % (bStr, len(bStr)) )
 	return bStr + bytes(n-len(bStr))
 
 #https://www.optimizationcore.com/coding/websocket-python-parsing-binary-frames-from-a-tcp-socket/
 async def websocketHandler(websocket):
 	async for msg in websocket:#for _ in range(3):
 		#msg = await websocket.read_message()#frame(4096)
-		#print(msg)
+		#print(msg[:50])
 		#async for msg in websocket:
 		rcvTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		#print(dir(websocket))
@@ -204,56 +249,58 @@ async def websocketHandler(websocket):
 			return
 		if( type(msg) != type(b'') ):
 			msg = msg.encode('utf-8')
-		numCmd = msg[0] - b'0'[0] #ascii character difference to convert digit to int
+		mIdx = 0
+		pktIdx = atoir_n(msg[0:3],3)
+		mIdx += 3
+		devId  = atoir_n(msg[mIdx : mIdx+4  ], 4)
+		mIdx += 4
+		numCmd = msg[mIdx] - b'0'[0] #ascii character difference to convert digit to int
+		mIdx += 1
 		cmdIdx = 0
-		fromDorC = msg[1]
-		if fromDorC == ord('d'):
-			print("websock rcv %s %c numCmd: %i msgLen: %i " % ( rcvTime, fromDorC, numCmd, msgLen) )
-		mIdx = 2
+		fromDorC = msg[mIdx]
+		#print( "pktIdx %i devId %s numCmd %i fromType %c" % (pktIdx, devId, numCmd, fromDorC) )
+		mIdx += 1
 		while cmdIdx < numCmd:
-			#print( "datType %s" % msg[mIdx:mIdx+11] )
+			#print(msg[mIdx : mIdx+11+20])
 			datType = msg[mIdx:mIdx+11]
-			#print( "devId %s" % msg[mIdx+11   : mIdx+11+4  ] )
-			devId  = atoir_n(msg[mIdx+11   : mIdx+11+4  ], 4)
-			#print( "datLen %s" % msg[mIdx+11+4 : mIdx+11+4+6] )
-			datLen = atoir_n(msg[mIdx+11+4 : mIdx+11+4+6], 6)
-			mIdx += 11+4+6
+			mIdx += 11
+			datLen = atoir_n(msg[mIdx : mIdx+6], 6)
+			mIdx += 6
 			datStr = msg[mIdx:mIdx+datLen]
-			#print( "from %s type: %s devId: %i datLen: %i" % (chr(fromDorC), datType, devId, datLen) )
-			if fromDorC == ord('d'): #from device
+			if fromDorC == ord('d'): #data from device
+				device.wSock = websocket
+				print( "from %s devId: %i datType: %s datLen: %i" % (chr(fromDorC), devId, datType, datLen) )
 				if datType.startswith(b"Stat"):
 					device.fillValues( datStr ) #read the status data in from device
 					#respond with queued commands
-					outBytes = GetCommandListBytes()
+					cmdDatArr = GetCommandListBytes()
 					#print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
-					await websocket.send( outBytes )
+					await device.send( svrDevId, cmdDatArr )
+					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
+					await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 				if datType.startswith(b"Set"):
 					device.fillSettings( datStr )
 				if datType.startswith(b"Img"):
 					device.fillImage( datStr, datLen )
-			else: #from client (browser http page)
+					lastSetTimeStr = str(device.lastImageTime).encode('utf-8')
+					print('sending image to browser')
+					await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+			else: #request or command from client (browser http page)
+				client.wSock = websocket
 				if datType.startswith(b'status'):
-					#print( 'sending status ' + str(len(device.postStatus)) )
+					#print( 'sending status to browser' + str(len(device.postStatus)) )
 					timeStr = str(device.lastStatusTime).encode('utf-8')
-					bytesToSend = b'2s' + \
-						rPadStr(11,'Stat') + lPadStr(4, str(device.devId)) + lPadStr(6, str(len(device.postStatus)) ) + device.postStatus + \
-						rPadStr(11,'Time') + lPadStr(4, str(device.devId)) + lPadStr(6, str(len(timeStr)) ) + timeStr
-					#print( 'stat bytes to send ' + str(bytesToSend) )
-					await websocket.send( bytesToSend )
+					await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(timeStr), timeStr)] )
 				elif datType.startswith(b'settings'):
-					setLen = str(len(device.postSettings)).encode('utf-8')
-					setLen = bytes(6-len(setLen)) + setLen #left pad set len another option may be str.rjust(10, '0')
-					#print( 'sending settings' )
-					await websocket.send( b'1sSet           0' + setLen + device.postSettings + str(device.lastSettingsTime).encode('utf-8') )
+					#setLen = str(len(device.postSettings)).encode('utf-8')
+					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
+					#print( 'sending settings to browser' )
+					await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 				elif datType.startswith(b'image'):
-					#print(device.lastImage)
-					#print("sending image to browser %i " % len(device.lastImage) )
-					#print( 'sending img' )
-					bytesToSend = b'1s' + \
-						rPadStr(11,'Img') + lPadStr(4, str(device.devId)) + lPadStr(6, str(len(device.lastImage)) ) + device.lastImage
-					await websocket.send( bytesToSend )
+					#print( 'sending img to browser' )
+					await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)] )
 				else:
-					cmd = datType
+					cmd = datType.strip()
 					val = datStr
 					print( 'action: ' + str(cmd) + ':' + str(val) + "|")
 					cmds.append( [cmd, val] )
@@ -340,11 +387,11 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			output.write("<html><head>")
 			output.write("<style type=\"text/css\">")
 			output.write("h1 {color:blue;}")
-			output.write("h2 {color:red;}")
+			output.write("h2 {color:orange;}")
 			output.write("</style>")
-			output.write("<h2>System Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
+			output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
 			output.write("<h1>Avaliable devices</h2>")
-			output.write('<a href="camControl.html">Esp32 Pan tilt camera</a>')
+			output.write('<a href="camControl.html">Esp32 Pan tilt camera ' + str(device.devId) + '</a>')
 			output.write("</body>")
 			output.write("</html>")
 
@@ -357,6 +404,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			print(e)
 			#self.send_error(404,'File Not Found: %s' % self.path)
 
+	#outdated now using websocket for less connection setup time bi directional send initiation communication
 	def do_POST(self): #accept data from device
 		global device, cmds
 		content_length = int(self.headers["Content-Length"])
@@ -424,7 +472,7 @@ def getIp():
 #https://stackoverflow.com/questions/50120102/python-http-server-keep-connection-alive
 def start_http_server_in_new_thread(server_address,requestHandler):
 	backend_server = http.server.ThreadingHTTPServer(server_address, requestHandler)
-	context = get_ssl_context("cert.pem", "key.pem")
+	context = get_ssl_context(certfile, keyfile)
 	backend_server.socket = context.wrap_socket(backend_server.socket, server_side=True)
 	f = lambda : backend_server.serve_forever()
 	backend_thread = threading.Thread(target=f)
@@ -443,7 +491,7 @@ async def startWebsocketServer():
 	global stop
 	print("start websocket server init")
 	port = 9999
-	ssl_context = get_ssl_context("cert.pem", "key.pem")
+	ssl_context = get_ssl_context(certfile, keyfile)
 	
 	stop = asyncio.Future()
 	

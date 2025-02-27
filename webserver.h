@@ -8,6 +8,10 @@ httpd_handle_t camera_httpd = NULL;
 
 #include "WebComDefines.h"
 
+#include "esp_websocket_client.h"
+esp_websocket_client_handle_t webSockClient = NULL;
+#include "webSocketClient.h"
+
 uint16_t serverUrlLen = 0;
 uint16_t serverCertLen = 0;
 char serverUrl[MAX_SVR_URL_LEN] = {'\0'};
@@ -22,38 +26,38 @@ static esp_err_t index_handler(httpd_req_t *req){
 	return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
 }
 
-#define STATUS_RESPONSE_LENGTH 80
-void fillStatusString(){
+#define STATUS_RESPONSE_LENGTH 80 //3+2+5+5+5+5+5+5+5+5+5+5+10+5+5+5
+uint16_t fillStatusString(char * outStr){
   //+1's to snprintf lengths because of \0 null terminator always appended
 
+	uint16_t idx = 0;
+
 	//fill header
-	lastCsiInfoStr[0] = '1';
-	lastCsiInfoStr[1] = 'd';
-	snprintf( &(lastCsiInfoStr[2]), 11+1, "Stat" );
-	snprintf( &(lastCsiInfoStr[13]), 4+1, "% 4d", devId );
-	snprintf( &(lastCsiInfoStr[17]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH );
+	snprintf( &(outStr[idx]), 11+1, "Stat" ); idx += 11;
+	snprintf( &(outStr[idx]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH ); idx += 6;
 
 	//fill data
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+0 ]), 3+1,  "% 3d", alarmArmed);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+3 ]), 2+1,  "% 2d", (int)lightLedValue);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+5 ]), 5+1,  "% 5i", magAX);//alarmInit_magSample.X);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+10]), 5+1,  "% 5i", magAY);//alarmInit_magSample.Y);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+15]), 5+1,  "% 5i", magAZ);//alarmInit_magSample.Z);
+	snprintf( &(outStr[idx]), 3+1,  "% 3d", alarmArmed); idx += 3;
+	snprintf( &(outStr[idx]), 2+1,  "% 2d", (int)lightLedValue); idx += 2;
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAX); idx += 5; //alarmInit_magSample.X);
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAY); idx += 5; //alarmInit_magSample.Y);
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAZ); idx += 5; //alarmInit_magSample.Z);
 
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+20]), 5+1,  "% 5d",servo1Angle);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+25]), 5+1,  "% 5d",servo2Angle);
+	snprintf( &(outStr[idx]), 5+1,  "% 5d",servo1Angle); idx += 5;
+	snprintf( &(outStr[idx]), 5+1,  "% 5d",servo2Angle); idx += 5;
 
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+30]), 5+1,  "% 5i", staRssi);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+35]), 5+1,  "% 5d", lastTemperature);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+40]), 5+1,  "% 5i", magX);//compass.magSample.X);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+45]), 5+1,  "% 5i", magY);//compass.magSample.Y);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+50]), 5+1,  "% 5i", magZ);//compass.magSample.Z);
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", staRssi); idx += 5;
+	snprintf( &(outStr[idx]), 5+1,  "% 5d", lastTemperature); idx += 5;
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magX); idx += 5; //compass.magSample.X);
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magY); idx += 5; //compass.magSample.Y);
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magZ); idx += 5; //compass.magSample.Z);
 
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+55]), 10+1, "% 10f", magHeading);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+65]), 5+1,  "% 5i", magAlarmDiff);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+70]), 5+1,  "% 5i", magAlarmTriggered);
-	snprintf( &(lastCsiInfoStr[WEB_SEND_HDR_LEN+75]), 5+1,  "% 5i", alarmOutput);
+	snprintf( &(outStr[idx]), 10+1, "% 10f", magHeading); idx += 10;
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmDiff); idx += 5;
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmTriggered); idx += 5;
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", alarmOutput); idx += 5;
 	//memset() //snprintf will set a \0 at end so don't need to memset
+	return idx;
 }
 
 void ObfsucatePass(char *str, uint8_t len){
@@ -63,57 +67,73 @@ void ObfsucatePass(char *str, uint8_t len){
   }
 }
 
-#define SETTINGS_RESPONSE_LENGTH 52+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)
-void fillSettingsString(){
+#define SETTINGS_RESPONSE_LENGTH 20+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)+(MAX_STORED_NETWORKS*NETWORK_NAME_LEN)
+uint16_t fillSettingsString( char * outputStr ){
+
+	uint16_t oIdx = 0;
+
+		//fill header
+	snprintf( &(outputStr[oIdx]), 11+1, "Stat" ); oIdx += 11;
+	snprintf( &(outputStr[oIdx]), 6+1, "% 6d", SETTINGS_RESPONSE_LENGTH ); oIdx += 6;
+
+	snprintf( &(outputStr[oIdx]),  5, "%i\n", MAG_ALARM_DELTA_THRESHOLD); oIdx += 5;
 	sensor_t * s = esp_camera_sensor_get();
+	snprintf( &(outputStr[oIdx]),  5, "%i\n", s->status.quality); oIdx += 5;
+	snprintf( &(outputStr[oIdx]), 5, "%i\n", s->status.framesize); oIdx += 5;
 	int8_t txPower;
 	esp_wifi_get_max_tx_power(&txPower);
-
-	snprintf( &(lastCsiInfoStr[0]),  5, "%i\n", MAG_ALARM_DELTA_THRESHOLD);
-	snprintf( &(lastCsiInfoStr[5]),  5, "%i\n", s->status.quality);
-	snprintf( &(lastCsiInfoStr[10]), 5, "%i\n", s->status.framesize);
-	snprintf( &(lastCsiInfoStr[15]), 5, "%i\n", txPower);
+	snprintf( &(outputStr[oIdx]), 5, "%i\n", txPower); oIdx += 5;
 	Serial.println("fSS storedVals");
 	preferences.begin("storedVals", true);
-		String svrUrlStr = preferences.getString("svrUrl");
-		uint16_t svrUrlStrLen = min( (uint16_t)NETWORK_NAME_LEN, (uint16_t)svrUrlStr.length() );
-		memcpy( &(lastCsiInfoStr[20]), svrUrlStr.c_str(), svrUrlStrLen );
-		memset( &(lastCsiInfoStr[20]) + svrUrlStrLen,
-		' ', NETWORK_NAME_LEN - svrUrlStrLen );
-		//Serial.println("svrUrl");
-		uint8_t storedNetworksSettingsStrStart = 52;
 		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
-			char networkInfo[NETWORK_NAME_LEN];
-		snprintf(storedPrefKey, 8,"net%i", i );
-		memset( networkInfo, '\0', NETWORK_NAME_LEN );
-			preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
-			memcpy( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*2*i)]),
-				networkInfo, NETWORK_NAME_LEN );
-			//Serial.print("net");Serial.println(i);
-			snprintf(storedPrefKey, 8,"pass%i", i );
-		memset( networkInfo, '\0', NETWORK_NAME_LEN );
-			preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
-			ObfsucatePass(networkInfo, NETWORK_NAME_LEN);
-			memcpy( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*((2*i)+1))]),
-				networkInfo, NETWORK_NAME_LEN );
-			//Serial.print("pass");Serial.println(i);
+			String svrUrlStr = preferences.getString("svrUrl"+i);
+			uint16_t svrUrlStrLen = min( (uint16_t)NETWORK_NAME_LEN, (uint16_t)svrUrlStr.length() );
+			memcpy( &(outputStr[oIdx]), svrUrlStr.c_str(), svrUrlStrLen ); 
+			memset( &(outputStr[oIdx]) + svrUrlStrLen,
+			' ', NETWORK_NAME_LEN - svrUrlStrLen ); oIdx += NETWORK_NAME_LEN;
+		}
+		//Serial.println("svrUrl");
+		uint16_t storedNetworksSettingsStrStart = oIdx;
+		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
+				char networkInfo[NETWORK_NAME_LEN];
+			snprintf(storedPrefKey, 8,"net%i", i );
+			memset( networkInfo, '\0', NETWORK_NAME_LEN );
+				preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
+				memcpy( &(outputStr[oIdx]),
+					networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
+				//Serial.print("net");Serial.println(i);
+				snprintf(storedPrefKey, 8,"pass%i", i );
+			memset( networkInfo, '\0', NETWORK_NAME_LEN );
+				preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
+				ObfsucatePass(networkInfo, NETWORK_NAME_LEN);
+				memcpy( &(outputStr[oIdx]),
+					networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
+				//Serial.print("pass");Serial.println(i);
 		}
 	preferences.end();
-	memset( &(lastCsiInfoStr[storedNetworksSettingsStrStart+(NETWORK_NAME_LEN*(2*MAX_STORED_NETWORKS))]),
-			'\0', 1 ); //prevent segfault reboot from missing \0
+	memset( &(outputStr[oIdx]),
+			'\0', 1 ); oIdx += 1;//prevent segfault reboot from missing \0
+
+	return oIdx;
 }
 
-void fillWebsvrStr(){
+
+uint8_t sendPktNum = 0;
+uint8_t fillPktHdr(char * outputBytes){
+	//if( self.sendPktIdx >= 256 ):
+	//	self.sendPktIdx = 0
+	uint8_t idx = 0;
+	snprintf( &(outputBytes[idx]), 3+1, "%3i", sendPktNum ); idx += 3;
+	snprintf( &(outputBytes[idx]), 4+1, "% 4d", devId ); idx += 4;
   //fill header
-	lastCsiInfoStr[0] = '1';
-	lastCsiInfoStr[1] = 'd';
-	snprintf( &(lastCsiInfoStr[2]), 11+1, "Stat" );
-	snprintf( &(lastCsiInfoStr[13]), 4+1, "% 4d", devId );
-	snprintf( &(lastCsiInfoStr[17]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH );
+	outputBytes[idx] = '1'; idx += 1;
+	outputBytes[idx] = 'd'; idx += 1;
+	sendPktNum++; //rollover at 255 because of uint8_t data type
+	return idx; //return offset in packet header
 }
 
 static esp_err_t settings_handler(httpd_req_t *req){
-	fillSettingsString();
+	fillSettingsString(lastCsiInfoStr);
 
 	httpd_resp_set_type(req, "text/html");
 	return httpd_resp_send(req, lastCsiInfoStr, SETTINGS_RESPONSE_LENGTH);
@@ -167,13 +187,14 @@ uint8_t getJpeg(uint8_t ** _jpg_buf, size_t * _jpg_buf_len){
 	}
 }
 
-void fillJpegSendHdr( size_t _jpg_buf_len ){
+uint8_t fillJpegSendHdr( char * outBuff, size_t _jpg_buf_len ){
 	//fill header
-	lastCsiInfoStr[0] = '1';
-	lastCsiInfoStr[1] = 'd';
-	snprintf( &(lastCsiInfoStr[2]), 11+1, "Img" );
-	snprintf( &(lastCsiInfoStr[13]), 4+1, "% 4d", devId );
-	snprintf( &(lastCsiInfoStr[17]), 6+1, "% 6d", _jpg_buf_len );
+	uint8_t idx = 0;
+	//outBuff[idx] = '1'; idx += 1;
+	//outBuff[idx] = 'd'; idx += 1;
+	snprintf( &(outBuff[idx]), 11+1, "Img" ); idx += 11;
+	snprintf( &(outBuff[idx]), 6+1, "% 6d", _jpg_buf_len ); idx += 6;
+	return idx;
 }
 
 //ascii to int reverse iteration for n characters
@@ -351,6 +372,15 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		preferences.end();
 		sucessfulyHandledCmd = 19;
 	}
+	else if(!strncmp(cmd, "getSettings", 11)){
+		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
+		pktIdx += fillSettingsString(&lastCsiInfoStr[pktIdx]);
+		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
+		sucessfulyHandledCmd = 20;
+	}
+	else if(!strncmp(cmd, "getStatus", 11)){
+
+	}
 
 	return sucessfulyHandledCmd;
 }
@@ -451,16 +481,6 @@ void startCameraServer(){
 }
 
 
-//not reccomended, though to bypass ESP_ERR_MBEDTLS_SSL_SETUP_FAILED
-//https://github.com/espressif/esp-idf/issues/13109
-//https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig-reference.html#config-esp-tls-insecure
-///.arduino/packages/esp32/tools/esp32-arduino-libs/idf-release_v5.3-083aad99-v2/esp32/sdkconfig
-// CONFIG_ESP_TLS_INSECURE=y
-// CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y
-// CONFIG_WS_OVER_TLS_SKIP_COMMON_NAME_CHECK=y
-#include "esp_websocket_client.h"
-esp_websocket_client_handle_t webSockClient = NULL;
-#include "webSocketClient.h"
 typedef enum{
 	DEV_STATUS   ,
 	DEV_SETTINGS ,
@@ -511,8 +531,8 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 	if( webSockClient == NULL ){//|| !esp_websocket_client_is_connected(webSockClient) && mainLoopsSinceWebSockStartedConnecting > 10000 ){
 		//attempt connection to server
 		Serial.println("attempt websocket connection");
-    mainLoopsSinceWebSockStartedConnecting = 0;
-    
+		mainLoopsSinceWebSockStartedConnecting = 0;
+
 		ReadNextSvrInfo();
 		
 		if( isAUrl(serverUrl) ){
@@ -552,19 +572,21 @@ void PostAndFetchDataFromCloudServer(PostType postType){
     //send a message to server 
 		Serial.print("send message to server ");
 		int httpResponseCode;
+		uint8_t hdrOffset = fillPktHdr(lastCsiInfoStr);
 		if( postType == DEV_STATUS ){
-			fillStatusString();
-			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
+			uint16_t statLen = fillStatusString(&lastCsiInfoStr[hdrOffset]);
+			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), hdrOffset+statLen, portMAX_DELAY);
 		}else if( postType == DEV_SETTINGS ){
-			fillSettingsString();
-			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), SETTINGS_RESPONSE_LENGTH, portMAX_DELAY);
+			uint16_t setLen = fillSettingsString(&lastCsiInfoStr[hdrOffset]);
+			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), hdrOffset+setLen, portMAX_DELAY);
 		}else if( postType == IMAGE ){
 			size_t _jpg_buf_len = 0;
 			uint8_t * _jpg_buf = NULL;
 			if( getJpeg( &_jpg_buf, &_jpg_buf_len) != 0 ){
 				Serial.print("send img "); Serial.println( _jpg_buf_len );
-			fillJpegSendHdr( _jpg_buf_len );
-			httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN, portMAX_DELAY);
+			uint16_t jpgHdrLen = fillJpegSendHdr( &lastCsiInfoStr[hdrOffset], _jpg_buf_len );
+			//printPayload( 0, hdrOffset+jpgHdrLen, lastCsiInfoStr );
+			httpResponseCode = esp_websocket_client_send_bin_partial(webSockClient, (const char *)&(lastCsiInfoStr[0]), hdrOffset+jpgHdrLen, portMAX_DELAY);
 			Serial.print("jpgHdr Resp ");Serial.println(httpResponseCode);
 					httpResponseCode = esp_websocket_client_send_cont_msg(webSockClient, (const char *)_jpg_buf, _jpg_buf_len, portMAX_DELAY);
 			esp_websocket_client_send_fin(webSockClient, portMAX_DELAY);
