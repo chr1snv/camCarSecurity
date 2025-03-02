@@ -226,6 +226,15 @@
 			if( pktIdx > 255 )
 				pktIdx = 0
 		}
+		
+		function sendSvrUrl(idx){
+			let svrUrl = document.getElementById('svrUrlVal'+idx).value;
+			sendCmd('svrUrl'+idx, svrUrl );
+		}
+		function sendSvrCert(idx){
+			let svrCert = document.getElementById('svrCert'+idx).value;
+			sendCmd( 'svrCert'+idx, svrCert );
+		}
 
 		function sendMagThreshold(){
 			sendCmd("magAlrmThrsh", document.getElementById("magThresholdNum").value );

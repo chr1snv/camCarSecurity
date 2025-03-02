@@ -95,8 +95,8 @@ class Device:
 
 	async def send( self, fromDevId, datInfoArr ):
 		if self.wSock != None:
-			print("send to device " )
-			print(datInfoArr)
+			#print("send to device " )
+			#print(datInfoArr)
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
 
 	def fillValues(self, postStr):
@@ -232,7 +232,7 @@ def rPadStr(n, chars):
 		bStr = chars
 	else:
 		bStr = str(chars).encode('utf-8') #left pad, another option may be str.rjust(10, '0')
-	print("bStr %s len %i" % (bStr, len(bStr)) )
+	#print("bStr %s len %i" % (bStr, len(bStr)) )
 	return bStr + bytes(n-len(bStr))
 
 #https://www.optimizationcore.com/coding/websocket-python-parsing-binary-frames-from-a-tcp-socket/
@@ -283,7 +283,7 @@ async def websocketHandler(websocket):
 				if datType.startswith(b"Img"):
 					device.fillImage( datStr, datLen )
 					lastSetTimeStr = str(device.lastImageTime).encode('utf-8')
-					print('sending image to browser')
+					#print('sending image to browser')
 					await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 			else: #request or command from client (browser http page)
 				client.wSock = websocket

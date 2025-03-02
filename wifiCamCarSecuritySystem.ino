@@ -75,6 +75,8 @@ int activelyCommanded = 0;
 uint16_t connectionAttempts = 0;
 bool settingsRequested = false;
 
+uint8_t mainLoopDelayMillis = 100;
+
 #include "wifiConnection.h"
 #include "webserver.h"
 
@@ -184,8 +186,7 @@ void loop() {
 	}else{
 		Serial.print("."); //print a dot while not connected to an ap for uplink
 	}
-
 	
 
-	delay(100);
+	delay(mainLoopDelayMillis);
 }

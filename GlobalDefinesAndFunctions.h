@@ -29,6 +29,8 @@ extern int activelyCommanded;
 
 extern bool settingsRequested;
 
+extern uint8_t mainLoopDelayMillis;
+
 uint16_t atoir_n( const char * c, uint8_t n );
 
 uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value );

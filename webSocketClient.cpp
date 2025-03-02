@@ -51,7 +51,7 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 		}else{
 			lastReadPktIdx = pktIdx;
 		}
-		uint16_t fromDevId = atoir_n( &payload[idx+4], 4 ); idx += 4;
+		uint16_t fromDevId = atoir_n( &payload[idx+4-1], 4 ); idx += 4;
 		uint8_t numData = payload[idx] - '0'; idx += 1;
 		char from = payload[idx]; idx += 1;
 		Serial.print(" numData ");
@@ -64,16 +64,15 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 				Serial.print("i "); Serial.println(i);
 				printPayload( idx, min( (uint16_t)(idx+WEB_SEND_HDR_LEN), payloadLen ), payload );
 
-				uint16_t datTypeIdx = idx;
-				uint16_t datDevNumIdx = datTypeIdx+DAT_TYPE_LEN;
-				uint16_t datDatLenIdx = datDevNumIdx+DAT_DEV_ID_LEN;
-				uint16_t datDatIdx = datDatLenIdx+DAT_DAT_LEN;
+				uint16_t datTypeIdx = idx; idx+= DAT_TYPE_LEN;
+				uint16_t datDatLenIdx = idx; idx += DAT_DAT_LEN;
 				uint16_t datLen = atoir_n(&(payload[datDatLenIdx+DAT_DAT_LEN-1]), DAT_DAT_LEN);
+				uint16_t datDatIdx = idx;
 				Serial.print( " datDatLenIdx " ); Serial.print( datDatLenIdx );
 				Serial.print( " datDatIdx " ); Serial.print( datDatIdx );
 				Serial.print( " datLen "); Serial.println( datLen );
 				retVal = doCommand( &(payload[datTypeIdx]), datLen, &(payload[datDatIdx]) );
-				idx = datDatIdx + datLen;
+				idx += datLen;
 				Serial.print( " idx " ); Serial.println( idx );
 			}
 		}

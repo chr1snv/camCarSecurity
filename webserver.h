@@ -244,8 +244,17 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		sucessfulyHandledCmd = 3;
 	}
 	else if(!strncmp(cmd, "camQuality", 10)){
-		s->set_quality(s, atoi(value));
+		uint8_t qual = atoir_n(&value[valLen-1], valLen);
+		Serial.print("camQual "); Serial.println(qual);
+		s->set_quality( s, atoir_n(&value[valLen-1], valLen) );
 		sucessfulyHandledCmd = 4;
+	}
+	else if ( !strncmp(cmd, "mainDelay", 9) ){
+		uint8_t del = atoir_n(&value[valLen-1], valLen);
+		Serial.print("mainDelay"); Serial.println(del);
+		del = max( min((uint8_t)100, del), (uint8_t)10 );
+		mainLoopDelayMillis = del;
+		sucessfulyHandledCmd = 21;
 	}
 
 	//servo position control
@@ -375,11 +384,14 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if(!strncmp(cmd, "getSettings", 11)){
 		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
 		pktIdx += fillSettingsString(&lastCsiInfoStr[pktIdx]);
-		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), WEB_SEND_HDR_LEN+STATUS_RESPONSE_LENGTH, portMAX_DELAY);
+		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
 		sucessfulyHandledCmd = 20;
 	}
 	else if(!strncmp(cmd, "getStatus", 11)){
-
+		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
+		pktIdx += fillStatusString(&lastCsiInfoStr[pktIdx]);
+		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
+		sucessfulyHandledCmd = 20;
 	}
 
 	return sucessfulyHandledCmd;
