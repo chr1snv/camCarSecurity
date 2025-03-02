@@ -155,13 +155,26 @@ class Client:
 	def __init__(self):
 		self.sendPktIdx = 0
 		self.wSock = None
+		self.numSendAuthPkts = 0
 	async def send( self, fromDevId, datInfoArr ):
-		if self.wSock != None:
+		if self.wSock != None and self.numSendAuthPkts > 0:
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
+			self.numSendAuthPkts -= 1
+	async def attemptLogin(self, username, password):
+		loginInfo = validClientLogins[username]
+		if password == loginInfo[0]:
+			loggedinAuthKey = 'a2x4s'
+			self.numSendAuthPkts = 1000
+			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, svrDevId, loggedinAuthKey )
 	
 svrDevId = 1
 device = Device()
 client = Client()
+
+validClientLogins = {}
+validClientLogins[b'user1'] = [b'pAswd1', 0, 0] #username, password, loginAttempts, loggedinAuthKey
+
+pendingLoginUname = ''
 
 #pending commands
 cmds = []
@@ -299,6 +312,28 @@ async def websocketHandler(websocket):
 				elif datType.startswith(b'image'):
 					#print( 'sending img to browser' )
 					await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)] )
+				elif datType.startswith(b'loginUname'):
+					pendingLoginUname = datStr
+					print( 'loginUname %s' % pendingLoginUname )
+				elif datType.startswith(b'loginPass'):
+					loginPass = datStr
+					print( 'loginPass: pendingLoginUname %s loginPass %s' % (pendingLoginUname, loginPass) )
+					try:
+						storedLogin = validClientLogins[pendingLoginUname]
+						print('UserName found')
+						if storedLogin[0] == loginPass:
+							print('loginPassMatches')
+							auth = b'a2d3'
+							storedLogin[1] = 0
+							storedLogin[2] = auth
+							validClientLogins[pendingLoginUname] = storedLogin
+							client.numSendAuthPkts = 1000
+							await client.send( svrDevId, [('auth', len(auth), auth)] )
+							print('sent auth to client')
+						else:
+							print("password doesn't match")
+					except Exception as e:
+						print('username not found %s' % e)
 				else:
 					cmd = datType.strip()
 					val = datStr
@@ -319,6 +354,18 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		except Exception as e:
 			None
 
+	def replyWithFile(self, filePath):
+		f = open(os.getcwd() + os.path.sep + filePath)
+		self.send_response(200)
+		if filePath.endswith('.js'):
+			self.send_header('Content-type','script/js')
+		else:
+			self.send_header('Content-type','text/html')
+		self.end_headers()
+		self.wfile.write(f.read().encode('utf-8'))
+		f.close()
+		self.finish() #https://stackoverflow.com/questions/6594418/simplehttprequesthandler-close-connection-before-returning-from-do-post-method
+
 	def do_GET(self):
 		global cmds
 		
@@ -334,7 +381,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				val = parts[5]
 				cmds.append( [cmd, val] )
 				return
-			if parts[1] == 'status':
+			elif parts[1] == 'status':
 				#print('return last device status info')
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
@@ -343,7 +390,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				self.end_headers()
 				self.wfile.write(statusStr)
 				return
-			if parts[1] == 'settings':
+			elif parts[1] == 'settings':
 				#print('get settings')
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
@@ -351,7 +398,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				self.send_header('Content-Length', len(settingsStr))
 				self.end_headers()
 				return
-			if parts[1] == 'image':
+			elif parts[1] == 'image':
 				self.send_response(200)
 				self.send_header('Content-type','image/jpeg')
 				self.send_header('Content-Length', device.lastImageLength)
@@ -359,46 +406,41 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				self.wfile.write(device.lastImage)
 				return
 			
-			if self.path.endswith(".html"): #device control page
+			elif self.path.endswith("camControl.html"): #device control page
 				#self.path has /index.htm
-				f = open(os.getcwd() + os.path.sep + self.path)
+				self.replyWithFile( self.path ) 
+				return
+
+			elif self.path.endswith("devSelection.html"): #device control page
+				# else the index / device selection / overview page
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
 				self.end_headers()
-				self.wfile.write("<table>".encode('utf-8'))
-				self.wfile.write("<td>".encode('utf-8'))
-				
-				self.wfile.write("</td>".encode('utf-8'))
-				self.wfile.write("</table>".encode('utf-8'))
-				self.wfile.write(f.read().encode('utf-8'))
-				f.close()
-				self.finish() #https://stackoverflow.com/questions/6594418/simplehttprequesthandler-close-connection-before-returning-from-do-post-method
+
+				now = datetime.now()
+
+				output = io.StringIO()
+				output.write("<html><head>")
+				output.write("<style type=\"text/css\">")
+				output.write("h1 {color:blue;}")
+				output.write("h2 {color:orange;}")
+				output.write("</style>")
+				output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
+				output.write("<h1>Avaliable devices</h1>")
+				output.write('<a href="camControl.html">Esp32 Pan tilt camera ' + str(device.devId) + '</a>')
+				output.write("</body>")
+				output.write("</html>")
+
+				self.wfile.write(output.getvalue().encode('utf-8'))
+				self.finish()
+
 				return
 
-			# else the index / device selection page
-			self.send_response(200)
-			self.send_header('Content-type','text/html')
-			self.end_headers()
-
-			now = datetime.now()
-
-			output = io.StringIO()
-
-			output.write("<html><head>")
-			output.write("<style type=\"text/css\">")
-			output.write("h1 {color:blue;}")
-			output.write("h2 {color:orange;}")
-			output.write("</style>")
-			output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
-			output.write("<h1>Avaliable devices</h2>")
-			output.write('<a href="camControl.html">Esp32 Pan tilt camera ' + str(device.devId) + '</a>')
-			output.write("</body>")
-			output.write("</html>")
-
-			self.wfile.write(output.getvalue().encode('utf-8'))
-			self.finish()
-
-			return
+			elif self.path.endswith(".js"):
+				self.replyWithFile(self.path)
+			
+			else: # the login page
+				self.replyWithFile( "login.html" )
 
 		except Exception as e:#@IOError:
 			print(e)

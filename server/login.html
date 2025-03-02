@@ -1,0 +1,42 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<style type="text/css">
+			h1 {color:blue; margin:3px;}
+			h2 {color:orange;}
+		</style>
+	</head>
+	<body>
+		<h1>Username</h1>
+		<input id='loginUname' />
+		<h1>Password</h1>
+		<input id='loginPass' type='password' />
+		<br/>
+		<br/>
+		<button onclick='attemptLogin()'>Login</button>
+
+	<script src="commonFunctions.js"></script>
+	<script>
+
+		function handleWebSockDataType(datType, dat){
+			if( datType.startsWith("auth") ){
+				storeAuthorization( dat );
+				document.location.href = 'devSelection.html';
+			}
+		}
+
+
+		function attemptLogin(){
+			let username = document.getElementById('loginUname').value;
+			let password = document.getElementById('loginPass').value;
+			sendCmds( [ ['loginUname', username], ['loginPass', password ] ] );
+		}
+
+		function storeAuthorization(auth){
+			localStorage.setItem('authId', auth);
+		}
+
+	</script>
+	</body>
+</html>
+
