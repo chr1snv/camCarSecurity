@@ -11,6 +11,8 @@ import asyncio
 from websockets.server import serve
 import pathlib
 
+from random import random
+
 import http.server
 import threading
 import ssl
@@ -155,26 +157,43 @@ class Client:
 	def __init__(self):
 		self.sendPktIdx = 0
 		self.wSock = None
-		self.numSendAuthPkts = 0
-	async def send( self, fromDevId, datInfoArr ):
-		if self.wSock != None and self.numSendAuthPkts > 0:
+		self.login = None
+	async def send( self, fromDevId, datInfoArr, sendWithoutAuth=False): #, auth ):
+		if self.wSock != None and (sendWithoutAuth or (self.login != None and self.login[LOGIN_REMAINING_RESPONSES_IDX])): #self.login[LOGIN_AUTHKEY_IDX] == auth:
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
-			self.numSendAuthPkts -= 1
-	async def attemptLogin(self, username, password):
-		loginInfo = validClientLogins[username]
-		if password == loginInfo[0]:
-			loggedinAuthKey = 'a2x4s'
-			self.numSendAuthPkts = 1000
-			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, svrDevId, loggedinAuthKey )
+			if self.login != None:
+				self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
 	
 svrDevId = 1
 device = Device()
 client = Client()
 
 validClientLogins = {}
-validClientLogins[b'user1'] = [b'pAswd1', 0, 0] #username, password, loginAttempts, loggedinAuthKey
+validClientLogins[b'user1'] = [b'pAswd1', 0, 0, 0, 0] #username(0), password(1), loginAttempts(2), loggedinAuthKey(3), remaining authorized responses(4)
+activeClientLogins = {}
 
-pendingLoginUname = ''
+LOGIN_USERNAME_IDX				= 0
+LOGIN_PASSWORD_IDX				= 1
+LOGIN_ATTEMPTS_IDX				= 2
+LOGIN_AUTHKEY_IDX				= 3
+LOGIN_REMAINING_RESPONSES_IDX	= 4
+
+def AuthKeyIsActive(authKey):
+	try:
+		login = activeClientLogins[authKey]
+		login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
+		remainingResponses = login[LOGIN_REMAINING_RESPONSES_IDX]
+		print('authKeyIsActive remResponses %i' % remainingResponses )
+		if remainingResponses > 0:
+			return True
+		else:
+			activeClientLogins[authKey] = None
+	except Exception as e:
+		print( "exception checking auth key is valid")
+		print( e )
+		None
+	return False
+
 
 #pending commands
 cmds = []
@@ -214,6 +233,24 @@ def setKeepAlive(rqh):
 #commands are recieved in the format
 	# | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
 	#||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
+
+
+def getRandomASCIIByteArrWithLength( leng ):
+	buf = bytearray()
+	numRange   = b'9'[0] - b'0'[0]
+	upperRange = b'Z'[0] - b'A'[0]
+	lowerRange = b'z'[0] - b'a'[0]
+	ovrAllRange = numRange + upperRange + lowerRange
+	for i in range( 0, leng ):
+		c = round( random() * ovrAllRange )
+		if c <= numRange:
+			buf.append( c + b'0'[0] )
+		elif ( c <= numRange + upperRange ):
+			buf.append( (c - numRange) + b'A'[0] )
+		else:
+			buf.append( (c - (numRange + upperRange) ) + b'a'[0] )
+	return buf #b.decode('utf-8')
+
 
 
 #ascii to int reverse iteration for n characters
@@ -273,6 +310,9 @@ async def websocketHandler(websocket):
 		fromDorC = msg[mIdx]
 		#print( "pktIdx %i devId %s numCmd %i fromType %c" % (pktIdx, devId, numCmd, fromDorC) )
 		mIdx += 1
+		
+		pktLoginUname = ''
+		pktAuth = ''
 		while cmdIdx < numCmd:
 			#print(msg[mIdx : mIdx+11+20])
 			datType = msg[mIdx:mIdx+11]
@@ -311,7 +351,15 @@ async def websocketHandler(websocket):
 					await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 				elif datType.startswith(b'image'):
 					#print( 'sending img to browser' )
-					await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)] )
+					await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)]  )
+				elif datType.startswith(b'auth'):
+					auth = datStr
+				elif datType.startswith(b'logout'):
+					key = datStr
+					if key == client.login[LOGIN_AUTHKEY_IDX]:
+						login = activeClientLogins[client.login[LOGIN_AUTHKEY_IDX]]
+						login[LOGIN_REMAINING_RESPONSES_IDX] = 0
+						activeClientLogins[client.login[LOGIN_AUTHKEY_IDX]] = None
 				elif datType.startswith(b'loginUname'):
 					pendingLoginUname = datStr
 					print( 'loginUname %s' % pendingLoginUname )
@@ -323,17 +371,27 @@ async def websocketHandler(websocket):
 						print('UserName found')
 						if storedLogin[0] == loginPass:
 							print('loginPassMatches')
-							auth = b'a2d3'
-							storedLogin[1] = 0
-							storedLogin[2] = auth
+							authKey = getRandomASCIIByteArrWithLength(16).decode('utf-8').encode('utf-8')
+							LOGIN_USERNAME_IDX = 0
+							LOGIN_PASSWORD_IDX = 1
+							LOGIN_ATTEMPTS_IDX = 2
+							LOGIN_AUTHKEY_IDX  = 3
+							LOGIN_REMAINING_RESPONSES_IDX = 4
+							storedLogin[LOGIN_ATTEMPTS_IDX] = 0
+							storedLogin[LOGIN_AUTHKEY_IDX] = authKey
+							storedLogin[LOGIN_REMAINING_RESPONSES_IDX] = 1000
 							validClientLogins[pendingLoginUname] = storedLogin
-							client.numSendAuthPkts = 1000
-							await client.send( svrDevId, [('auth', len(auth), auth)] )
+							client.login = storedLogin
+							print("setting authKey %s as active" % authKey)
+							activeClientLogins[authKey] = storedLogin
+							await client.send( svrDevId, [('auth', len(authKey), authKey)] )
 							print('sent auth to client')
 						else:
 							print("password doesn't match")
+							await client.send( svrDevId, [('authErr', 0, b'')], True )
 					except Exception as e:
 						print('username not found %s' % e)
+						await client.send( svrDevId, [('authErr', 0, b'')], True )
 				else:
 					cmd = datType.strip()
 					val = datStr
@@ -372,7 +430,12 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		try:
 			#print("get path " + self.path )
 			parts = re.split(r"[/?&=]", self.path)
-			if parts[1] == 'action':
+			print('parts %s ' % str(parts) )
+			authKeyValid = False
+			if len(parts) > 2:
+				authKeyValid = AuthKeyIsActive( parts[2].encode('utf-8') )
+			
+			if parts[1] == 'action' and authKeyValid:
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
 				self.end_headers()
@@ -381,7 +444,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				val = parts[5]
 				cmds.append( [cmd, val] )
 				return
-			elif parts[1] == 'status':
+			elif parts[1] == 'status' and authKeyValid:
 				#print('return last device status info')
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
@@ -390,7 +453,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				self.end_headers()
 				self.wfile.write(statusStr)
 				return
-			elif parts[1] == 'settings':
+			elif parts[1] == 'settings' and authKeyValid:
 				#print('get settings')
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
@@ -398,7 +461,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				self.send_header('Content-Length', len(settingsStr))
 				self.end_headers()
 				return
-			elif parts[1] == 'image':
+			elif parts[1] == 'image' and authKeyValid:
 				self.send_response(200)
 				self.send_header('Content-type','image/jpeg')
 				self.send_header('Content-Length', device.lastImageLength)
@@ -406,12 +469,12 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				self.wfile.write(device.lastImage)
 				return
 			
-			elif self.path.endswith("camControl.html"): #device control page
+			elif parts[1] == "camControl.html" and authKeyValid: #device control page
 				#self.path has /index.htm
-				self.replyWithFile( self.path ) 
+				self.replyWithFile( parts[1] ) 
 				return
 
-			elif self.path.endswith("devSelection.html"): #device control page
+			elif parts[1] == "devSelection.html" and authKeyValid: #device control page
 				# else the index / device selection / overview page
 				self.send_response(200)
 				self.send_header('Content-type','text/html')
@@ -425,9 +488,11 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				output.write("h1 {color:blue;}")
 				output.write("h2 {color:orange;}")
 				output.write("</style>")
+				output.write("<script src='commonFunctions.js'></script>")
 				output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
+				output.write("<button onclick=\"logout()\">Log out</button>")
 				output.write("<h1>Avaliable devices</h1>")
-				output.write('<a href="camControl.html">Esp32 Pan tilt camera ' + str(device.devId) + '</a>')
+				output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\')">Esp32 Pan tilt camera ' + str(device.devId) + '</button>')
 				output.write("</body>")
 				output.write("</html>")
 
@@ -436,7 +501,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 
 				return
 
-			elif self.path.endswith(".js"):
+			elif parts[1].endswith("commonFunctions.js") or ( parts[1].endswith(".js") and authKeyValid ):
 				self.replyWithFile(self.path)
 			
 			else: # the login page
@@ -446,55 +511,6 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			print(e)
 			#self.send_error(404,'File Not Found: %s' % self.path)
 
-	#outdated now using websocket for less connection setup time bi directional send initiation communication
-	def do_POST(self): #accept data from device
-		global device, cmds
-		content_length = int(self.headers["Content-Length"])
-		post_data = self.rfile.read(content_length)
-		#print( self.headers["Content-Type"] + " " + str(content_length) )
-		if self.headers["Content-Type"] == "image/jpeg":
-			#print( post_data )
-			#Read image using cv2
-			#image_numpy = np.frombuffer(post_data, np.int8)
-			#img = cv2.imdecode(image_numpy, cv2.IMREAD_COLOR )
-			#cv2.imshow("esp32img", img)
-			device.lastImage = post_data
-			device.lastImageLength = content_length
-			device.lastImageTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
-			#demonstation that the images are being recieved to the server uncorrupted
-			#with open(str(device.lastImageTime)[-5:]+".jpeg", "wb") as file:
-			#	file.write(post_data)
-			#	file.close()
-			self.send_response(200)
-			self.send_header('Content-type', 'text/html')
-			self.send_header('Content-Length', 0)
-			self.end_headers()
-			#self.finish()
-		elif self.headers["Content-Type"] == "text/settings":
-			postStr = post_data.decode("utf-8")
-			device.lastSettings =  postStr
-			device.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
-		elif self.headers["Content-Type"] == "text/status": #status or settings fixed length string
-			postStr = post_data.decode("utf-8")
-			#print("post_data " + postStr )
-
-			device.fillValues( postStr ) #read the status data in from device
-
-			#respond with queued commands
-			self.send_response(200)
-			self.send_header('Content-type', 'text/html')
-			
-			outBytes = GetCommandListBytes()
-			
-			self.send_header('Content-Length', len(outBytes))
-			self.end_headers()
-			self.wfile.write( outBytes )
-			#print( output.getvalue() )
-			
-			#self.finish()
-		
-	def log_message(self, format, *args):
-		return
 
 
 svrIp = '127.0.0.1'

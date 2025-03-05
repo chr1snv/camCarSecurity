@@ -93,7 +93,7 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 				let datLen = atoir_n( td.decode( response.slice(datIdx,datIdx+6) ), 6 ); datIdx += 6;
 				let dat = response.slice(datIdx,datIdx+datLen); datIdx += datLen;
 				let datStr = td.decode( dat );
-				handleWebSockDataType(datType, dat);
+				handleWebSockDataType(datType, dat, datLen);
 
 			}
 			
@@ -150,6 +150,22 @@ function sendCmds( datas ) {
 
 function sendCmd(datType, dat, datLen=undefined){
 	sendCmds([[datType, dat, datLen]]);
+}
+
+function gotoUrlPlusAuthKeyAndArgs(url, additionalArgs=undefined){
+	let getStr = url + "?" + localStorage.getItem('authKey');
+	if( additionalArgs != undefined ){
+		for( let i = 0; i < additionalArgs.length; ++i ){
+			getStr += "&" + additionalArgs[i][0] + "=" + additionalArgs[i][1];
+		}
+	}
+	document.location.href = getStr;
+}
+
+function logout(){
+	sendCmd('logout', localStorage.getItem('authKey') );
+	localStorage.setItem('authKey', '');
+	document.location.href = '/';
 }
 
 

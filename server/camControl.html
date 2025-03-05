@@ -34,7 +34,8 @@
 	</head>
 	<body>
 	<div align="left" style="width:100%">
-	<a href="/" >< All devices</a>
+	<button onclick="gotoUrlPlusAuthKeyAndArgs('devSelection.html')" >< All devices</button>
+	<button onclick="logout()">Log out</button>
 	</div>
 	<h1>Device</h1>
 	<h2 id="devId"></h2>
@@ -371,7 +372,7 @@
 
 		let lastNetworkUpdateTime = 0;
 		const networkUpdateInterval = 1000;
-		function handleWebSockDataType(datType, dat){
+		function handleWebSockDataType(datType, dat, datLen){
 			if( datType.startsWith("Time") ){
 				DisplayTime( dat );
 			}else if( datType.startsWith("Stat") ){

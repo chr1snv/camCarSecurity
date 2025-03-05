@@ -7,6 +7,8 @@
 		</style>
 	</head>
 	<body>
+		<p id="networkAuthText"></p>
+		<a id="networkAuthLink"></p>
 		<h1>Username</h1>
 		<input id='loginUname' />
 		<h1>Password</h1>
@@ -14,15 +16,24 @@
 		<br/>
 		<br/>
 		<button onclick='attemptLogin()'>Login</button>
+		<p id="loginStatus"></p>
 
 	<script src="commonFunctions.js"></script>
 	<script>
 
 		function handleWebSockDataType(datType, dat){
-			if( datType.startsWith("auth") ){
-				storeAuthorization( dat );
-				document.location.href = 'devSelection.html';
+			if( datType.startsWith( "authErr" ) ){
+				document.getElementById("loginStatus").innerText = "Invalid login";
+				window.setTimeout( function(){
+					document.getElementById("loginStatus").innerText = ""
+				}, 1000);
 			}
+			else if( datType.startsWith( "auth" ) ){
+				let authStr = td.decode(dat);
+				storeAuthorization( authStr );
+				document.location.href = 'devSelection.html?'+authStr;
+			}
+			
 		}
 
 
@@ -33,7 +44,7 @@
 		}
 
 		function storeAuthorization(auth){
-			localStorage.setItem('authId', auth);
+			localStorage.setItem('authKey', auth);
 		}
 
 	</script>
