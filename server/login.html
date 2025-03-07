@@ -31,10 +31,18 @@
 			else if( datType.startsWith( "auth" ) ){
 				let authStr = td.decode(dat);
 				storeAuthorization( authStr );
-				document.location.href = 'devSelection.html?'+authStr;
+				gotoUrlPlusAuthKeyAndArgs('devSelection.html');
 			}
 			
 		}
+		
+		document.getElementById("loginPass").addEventListener("keydown",
+			function(evt){
+				if(evt.code === "Enter"){
+					attemptLogin();
+				}
+			}
+		);
 
 
 		function attemptLogin(){

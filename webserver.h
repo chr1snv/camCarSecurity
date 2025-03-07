@@ -6,7 +6,7 @@
 httpd_handle_t camera_httpd = NULL;
 
 
-#include "WebComDefines.h"
+//#include "WebComDefines.h"
 
 #include "esp_websocket_client.h"
 esp_websocket_client_handle_t webSockClient = NULL;
@@ -387,7 +387,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
 		sucessfulyHandledCmd = 20;
 	}
-	else if(!strncmp(cmd, "getStatus", 11)){
+	else if(!strncmp(cmd, "getStatus", 9)){
 		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
 		pktIdx += fillStatusString(&lastCsiInfoStr[pktIdx]);
 		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);

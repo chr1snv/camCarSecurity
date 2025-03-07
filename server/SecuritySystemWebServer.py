@@ -11,6 +11,12 @@ import asyncio
 from websockets.server import serve
 import pathlib
 
+
+#from Crypto import Random
+#from Crypto.Cipher import AES
+#import base64
+
+
 from random import random
 
 import http.server
@@ -159,7 +165,19 @@ class Client:
 		self.wSock = None
 		self.login = None
 	async def send( self, fromDevId, datInfoArr, sendWithoutAuth=False): #, auth ):
-		if self.wSock != None and (sendWithoutAuth or (self.login != None and self.login[LOGIN_REMAINING_RESPONSES_IDX])): #self.login[LOGIN_AUTHKEY_IDX] == auth:
+		okToSend = False
+		if self.wSock != None:
+			if sendWithoutAuth:
+				okToSend = True
+			elif self.login != None: #should it be checked that self.login[LOGIN_AUTHKEY_IDX] == auth: ?
+				if self.login[LOGIN_REMAINING_RESPONSES_IDX] > 0:
+					self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
+					okToSend = True
+				else:
+					logoutClientUsingKey(key)
+					self.login = None #not sure if necessary because this client instance would then be garbage collected
+		
+		if okToSend:
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
 			if self.login != None:
 				self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
@@ -171,6 +189,7 @@ client = Client()
 validClientLogins = {}
 validClientLogins[b'user1'] = [b'pAswd1', 0, 0, 0, 0] #username(0), password(1), loginAttempts(2), loggedinAuthKey(3), remaining authorized responses(4)
 activeClientLogins = {}
+activeGetKeys = {}
 
 LOGIN_USERNAME_IDX				= 0
 LOGIN_PASSWORD_IDX				= 1
@@ -178,21 +197,18 @@ LOGIN_ATTEMPTS_IDX				= 2
 LOGIN_AUTHKEY_IDX				= 3
 LOGIN_REMAINING_RESPONSES_IDX	= 4
 
-def AuthKeyIsActive(authKey):
-	try:
-		login = activeClientLogins[authKey]
-		login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
-		remainingResponses = login[LOGIN_REMAINING_RESPONSES_IDX]
-		print('authKeyIsActive remResponses %i' % remainingResponses )
-		if remainingResponses > 0:
-			return True
-		else:
-			activeClientLogins[authKey] = None
-	except Exception as e:
-		print( "exception checking auth key is valid")
-		print( e )
-		None
-	return False
+def GetKeyIsActive(getKey):
+	if getKey in activeGetKeys:
+		del activeGetKeys[getKey]
+		return True
+	else:
+		return False
+
+
+def logoutClientUsingKey(key):
+	login = activeClientLogins[key]
+	login[LOGIN_REMAINING_RESPONSES_IDX] = 0
+	activeClientLogins[key] = None
 
 
 #pending commands
@@ -223,16 +239,20 @@ def GetCommandListBytes():
 def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
 	rqh.send_header("keep-alive", "timeout=5, max=30")
-	
-#status		: 0,
-#settings	: 1,
-#image 		: 2
+
 
 #data is sent over the websocket in the format
 	#|numData(1) | dataTypeStr (12) | deviceId(4) | dataLen(6) | data
 #commands are recieved in the format
 	# | num commands(1)    ||| cmd name(12) | cmd length(4) | cmd value(cmd length) |||
 	#||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
+
+#everything except the login.html and commonFunctions.js require a vaild authorization to access
+#i.e. num commands 2 with the first command being auth and a non timed out key
+#auth keys are used to identify connections, if a hashed auth key is copied,
+#the copied one will be one behind and disallowed access
+
+#https://stackoverflow.com/questions/30990129/encrypt-in-python-decrypt-in-javascript
 
 
 def getRandomASCIIByteArrWithLength( leng ):
@@ -340,29 +360,13 @@ async def websocketHandler(websocket):
 					await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 			else: #request or command from client (browser http page)
 				client.wSock = websocket
-				if datType.startswith(b'status'):
-					#print( 'sending status to browser' + str(len(device.postStatus)) )
-					timeStr = str(device.lastStatusTime).encode('utf-8')
-					await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(timeStr), timeStr)] )
-				elif datType.startswith(b'settings'):
-					#setLen = str(len(device.postSettings)).encode('utf-8')
-					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
-					#print( 'sending settings to browser' )
-					await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
-				elif datType.startswith(b'image'):
-					#print( 'sending img to browser' )
-					await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)]  )
-				elif datType.startswith(b'auth'):
-					auth = datStr
-				elif datType.startswith(b'logout'):
-					key = datStr
-					if key == client.login[LOGIN_AUTHKEY_IDX]:
-						login = activeClientLogins[client.login[LOGIN_AUTHKEY_IDX]]
-						login[LOGIN_REMAINING_RESPONSES_IDX] = 0
-						activeClientLogins[client.login[LOGIN_AUTHKEY_IDX]] = None
+				if datType.startswith(b'auth'):
+					pktAuth = datStr
+					if not pktAuth in activeClientLogins:
+						return
 				elif datType.startswith(b'loginUname'):
-					pendingLoginUname = datStr
-					print( 'loginUname %s' % pendingLoginUname )
+						pendingLoginUname = datStr
+						print( 'loginUname %s' % pendingLoginUname )
 				elif datType.startswith(b'loginPass'):
 					loginPass = datStr
 					print( 'loginPass: pendingLoginUname %s loginPass %s' % (pendingLoginUname, loginPass) )
@@ -392,11 +396,33 @@ async def websocketHandler(websocket):
 					except Exception as e:
 						print('username not found %s' % e)
 						await client.send( svrDevId, [('authErr', 0, b'')], True )
-				else:
-					cmd = datType.strip()
-					val = datStr
-					print( 'action: ' + str(cmd) + ':' + str(val) + "|")
-					cmds.append( [cmd, val] )
+				elif pktAuth != '': #a valid pktAuth has been recieved for the data packet
+					#the following requests are allowed
+					if datType.startswith(b'getKey'): #generate a get key make it active and return it
+						getKey = getRandomASCIIByteArrWithLength(16).decode('utf-8').encode('utf-8');
+						activeGetKeys[getKey] = client
+						await client.send(svrDevId, [('getKey', len(getKey), getKey)])
+					if datType.startswith(b'status'):
+						#print( 'sending status to browser' + str(len(device.postStatus)) )
+						timeStr = str(device.lastStatusTime).encode('utf-8')
+						await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(timeStr), timeStr)] )
+					elif datType.startswith(b'settings'):
+						#setLen = str(len(device.postSettings)).encode('utf-8')
+						lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
+						#print( 'sending settings to browser' )
+						await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+					elif datType.startswith(b'image'):
+						#print( 'sending img to browser' )
+						await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)]  )
+					elif datType.startswith(b'logout'):
+						key = datStr
+						if key == client.login[LOGIN_AUTHKEY_IDX]: #only allow user to logout themselves
+							logoutClientUsingKey(client.login[LOGIN_AUTHKEY_IDX])
+					else:
+						cmd = datType.strip()
+						val = datStr
+						print( 'action: ' + str(cmd) + ':' + str(val) + "|")
+						cmds.append( [cmd, val] )
 			mIdx += datLen
 			cmdIdx += 1
 			#print( " mIdx %i" % mIdx )
@@ -431,77 +457,78 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			#print("get path " + self.path )
 			parts = re.split(r"[/?&=]", self.path)
 			print('parts %s ' % str(parts) )
-			authKeyValid = False
+			getKeyValid = False
 			if len(parts) > 2:
-				authKeyValid = AuthKeyIsActive( parts[2].encode('utf-8') )
+				getKeyValid = GetKeyIsActive( parts[2].encode('utf-8') )
 			
-			if parts[1] == 'action' and authKeyValid:
-				self.send_response(200)
-				self.send_header('Content-type','text/html')
-				self.end_headers()
-				cmd = parts[3]
-				print( 'action: ' + cmd)
-				val = parts[5]
-				cmds.append( [cmd, val] )
-				return
-			elif parts[1] == 'status' and authKeyValid:
-				#print('return last device status info')
-				self.send_response(200)
-				self.send_header('Content-type','text/html')
-				statusStr = device.postStatus.encode('utf-8')
-				self.send_header('Content-Length', len(statusStr))
-				self.end_headers()
-				self.wfile.write(statusStr)
-				return
-			elif parts[1] == 'settings' and authKeyValid:
-				#print('get settings')
-				self.send_response(200)
-				self.send_header('Content-type','text/html')
-				settingsStr = device.postSettings.encode('utf-8')
-				self.send_header('Content-Length', len(settingsStr))
-				self.end_headers()
-				return
-			elif parts[1] == 'image' and authKeyValid:
-				self.send_response(200)
-				self.send_header('Content-type','image/jpeg')
-				self.send_header('Content-Length', device.lastImageLength)
-				self.end_headers()
-				self.wfile.write(device.lastImage)
-				return
-			
-			elif parts[1] == "camControl.html" and authKeyValid: #device control page
-				#self.path has /index.htm
-				self.replyWithFile( parts[1] ) 
-				return
+			if getKeyValid: #then allowed to request the following
+				if parts[1] == 'action':
+					self.send_response(200)
+					self.send_header('Content-type','text/html')
+					self.end_headers()
+					cmd = parts[3]
+					print( 'action: ' + cmd)
+					val = parts[5]
+					cmds.append( [cmd, val] )
+					return
+				elif parts[1] == 'status':
+					#print('return last device status info')
+					self.send_response(200)
+					self.send_header('Content-type','text/html')
+					statusStr = device.postStatus.encode('utf-8')
+					self.send_header('Content-Length', len(statusStr))
+					self.end_headers()
+					self.wfile.write(statusStr)
+					return
+				elif parts[1] == 'settings':
+					#print('get settings')
+					self.send_response(200)
+					self.send_header('Content-type','text/html')
+					settingsStr = device.postSettings.encode('utf-8')
+					self.send_header('Content-Length', len(settingsStr))
+					self.end_headers()
+					return
+				elif parts[1] == 'image':
+					self.send_response(200)
+					self.send_header('Content-type','image/jpeg')
+					self.send_header('Content-Length', device.lastImageLength)
+					self.end_headers()
+					self.wfile.write(device.lastImage)
+					return
+				
+				elif parts[1] == "camControl.html": #device control page
+					#self.path has /index.htm
+					self.replyWithFile( parts[1] ) 
+					return
 
-			elif parts[1] == "devSelection.html" and authKeyValid: #device control page
-				# else the index / device selection / overview page
-				self.send_response(200)
-				self.send_header('Content-type','text/html')
-				self.end_headers()
+				elif parts[1] == "devSelection.html": #device control page
+					# else the index / device selection / overview page
+					self.send_response(200)
+					self.send_header('Content-type','text/html')
+					self.end_headers()
 
-				now = datetime.now()
+					now = datetime.now()
 
-				output = io.StringIO()
-				output.write("<html><head>")
-				output.write("<style type=\"text/css\">")
-				output.write("h1 {color:blue;}")
-				output.write("h2 {color:orange;}")
-				output.write("</style>")
-				output.write("<script src='commonFunctions.js'></script>")
-				output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
-				output.write("<button onclick=\"logout()\">Log out</button>")
-				output.write("<h1>Avaliable devices</h1>")
-				output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\')">Esp32 Pan tilt camera ' + str(device.devId) + '</button>')
-				output.write("</body>")
-				output.write("</html>")
+					output = io.StringIO()
+					output.write("<html><head>")
+					output.write("<style type=\"text/css\">")
+					output.write("h1 {color:blue;}")
+					output.write("h2 {color:orange;}")
+					output.write("</style>")
+					output.write("<script src='commonFunctions.js'></script>")
+					output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
+					output.write("<button onclick=\"logout()\">Log out</button>")
+					output.write("<h1>Avaliable devices</h1>")
+					output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\')">Esp32 Pan tilt camera ' + str(device.devId) + '</button>')
+					output.write("</body>")
+					output.write("</html>")
 
-				self.wfile.write(output.getvalue().encode('utf-8'))
-				self.finish()
+					self.wfile.write(output.getvalue().encode('utf-8'))
+					self.finish()
 
-				return
+					return
 
-			elif parts[1].endswith("commonFunctions.js") or ( parts[1].endswith(".js") and authKeyValid ):
+			elif parts[1].endswith("commonFunctions.js") or ( parts[1].endswith(".js") and getKeyValid ):
 				self.replyWithFile(self.path)
 			
 			else: # the login page

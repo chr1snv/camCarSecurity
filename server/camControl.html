@@ -134,7 +134,7 @@
 			<td id="alarmOutput"></td>
 		</tr>
 	</table>
-	<h2 onclick="toggleDisp(this, 'settingsDisp')" style="cursor: pointer;">> Settings</h2>
+	<h2 onclick="FetchAndShowOrHideSettingsTab(this)" style="cursor: pointer;">> Settings</h2>
 	<div id="settingsDisp" style="display:None;">
 		<table>
 			<tr>
@@ -174,9 +174,11 @@
 				<td><button onclick="sendCmd('camRes', 'SVGA');">SVGA</button></td>
 			</tr>
 			</table>
-			<table id="storedSvrUrlTable">
+			<h3 onclick="toggleDisp(this, 'storedSvrUrlTable')" style="cursor: pointer;">> SvrUrls</h3>
+			<table id="storedSvrUrlTable" style="display:None;">
 			</table>
-			<table id="storedSsidsTable">
+			<h3 onclick="toggleDisp(this, 'storedSsidsTable')" style="cursor: pointer;">> Networks</h3>
+			<table id="storedSsidsTable" style="display:None;">
 			</table>
 		</div>
 		<script src="commonFunctions.js"></script>
@@ -189,9 +191,19 @@
 			if( elm.style.length > 0 ){
 				elm.style = "";
 				titleElm.textContent = "v " + title;
+				return true;
 			}else{
 				elm.style = "display:none;";
 				titleElm.textContent = "> " + title;
+				return false;
+			}
+		}
+		
+		function FetchAndShowOrHideSettingsTab(titleElm){
+			let settingsShown = toggleDisp(titleElm, 'settingsDisp');
+			if( settingsShown ){
+				sendCmd('settings');
+			}else{
 			}
 		}
 		
@@ -295,8 +307,6 @@
 		genSvrEntryTable();
 
 		//window.onload = document.getElementById("photo").src = window.location.href.slice(0, -1) + ":81/stream";
-
-		
 
 		function DisplayTime( bArr ){
 			let lclTime = Date.now();
