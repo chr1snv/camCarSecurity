@@ -42,6 +42,7 @@ let webSocketSvrUrlParts = document.URL.split(":");
 const webSocketSvrUrl = webSocketSvrUrlParts[0] + ":" + webSocketSvrUrlParts[1] + ":" + "9999"
 let socketInstance = null;
 let queuedToSendWebsocketMessage = null;
+let socketErrorTimeoutHandle = null;
 function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=false){
 
 	if( socketInstance == null ){
@@ -54,6 +55,7 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 			socketInstance.send( queuedToSendWebsocketMessage );
 		}
 
+		
 		socketInstance.onerror = (event) => {
 			console.log("socketInstance.onerror " + event.data);
 			let nAtElm = document.getElementById("networkAuthText");
@@ -63,6 +65,13 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 			let url = "https://"+urlParts[1];
 			nALElm.href = url;
 			nALElm.innerText = url;
+			clearTimeout( socketErrorTimeoutHandle );
+			socketErrorTimeoutHandle = setTimeout( 
+				function(){ 
+					document.getElementById("networkAuthText").innerText = '';
+					document.getElementById("networkAuthLink").innerText = '';
+				},
+				5000 );
 		}
 
 		socketInstance.onclose = (event) => {
