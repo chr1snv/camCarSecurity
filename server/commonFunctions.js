@@ -1,11 +1,11 @@
 
 
-function strFromStrRange(combinedStr, strt, lenDel){
+function strFromByteRange(combinedStr, strt, lenDel){
 	let strPart = "";
 	for( let i = strt; i < strt+lenDel; ++i){
 		let char = combinedStr[i];
-		if( char != '\u0000' )
-		strPart += char;
+		if( char != 0 )//'\u0000' )
+		strPart += String.fromCharCode(char);
 	}
 	return strPart;
 }
@@ -89,22 +89,29 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 			//|pktNum(3)|devId(4) | numData(1) | 'd','s','c','l'(1) ||||dataTypeStr (11) | deviceFromId(4) | dataLen(6) | data |||
 			//||| - |||| repeats num commands times up to CMD_BUFF_MAX_LEN
 			let datIdx = 0;
-			let pktNum = atoir_n(td.decode( response.slice(0,3) ), 3 ); datIdx += 3;
+			let pktNum = atoir_n(sFBa( response.slice(0,3) ), 3 ); datIdx += 3;
 			//document.getElementById("pktNum").innerText = pktNum;
-			let pktFromDeviceId = atoir_n( td.decode( response.slice(3,7) ), 4 ); datIdx += 4;
+			let pktFromDeviceId = atoir_n( sFBa( response.slice(3,7) ), 4 ); datIdx += 4;
 			//document.getElementById('devId').innerText = pktFromDeviceId;
-			let numData = Number.parseInt(td.decode( response.slice(datIdx,datIdx+1) )); datIdx += 1;
-			let respFrom = td.decode( response.slice(datIdx,datIdx+1) ); datIdx+=1;
+			let numData = Number.parseInt(sFBa( response.slice(datIdx,datIdx+1) )); datIdx += 1;
+			let respFrom = sFBa( response.slice(datIdx,datIdx+1) ); datIdx+=1;
 			
 			for(let dNum=0; dNum < numData; ++dNum ){
 
-				let datType = td.decode( response.slice(datIdx,datIdx+11) ); datIdx += 11;
-				let datLen = atoir_n( td.decode( response.slice(datIdx,datIdx+6) ), 6 ); datIdx += 6;
+				let datType = sFBa( response.slice(datIdx,datIdx+11) ); datIdx += 11;
+				let datLen = atoir_n( sFBa( response.slice(datIdx,datIdx+6) ), 6 ); datIdx += 6;
 				let dat = response.slice(datIdx,datIdx+datLen); datIdx += datLen;
-				let datStr = td.decode( dat );
+				let datStr = sFBa( dat );
 				if(datType.startsWith('getKey') )
-					finishUrlGoto(td.decode(dat), datLen);
-				handleWebSockDataType(datType, dat, datLen);
+					finishUrlGoto(sFBa(dat), datLen);
+				else if( datType.startsWith("remPkts") ){
+					let remPktsElm = document.getElementById("remainingPackets");
+					if( remPktsElm )
+						remPktsElm.innerText = sFBa(dat);
+				}else if( datType.startsWith("logout") ){
+					logout();
+				}else //per page functionality
+					handleWebSockDataType(datType, dat, datLen);
 
 			}
 			

@@ -33,10 +33,13 @@
 	</style>
 	</head>
 	<body>
-	<div align="left" style="width:100%">
-	<button onclick="gotoUrlPlusAuthKeyAndArgs('devSelection.html')" >< All devices</button>
-	<button onclick="logout()">Log out</button>
-	</div>
+	<table style="width:400px">
+		<tr>
+			<td><button onclick="gotoUrlPlusAuthKeyAndArgs('devSelection.html')" >< All devices</button></td>
+			<td><button onclick="logout()">Log out</button></td>
+			<td><h4 style="margin-bottom:0px;">Packets until auto-logout</h4></td><td><p id="remainingPackets">?</p></td>
+		</tr>
+	</table>
 	<h1>Device</h1>
 	<h2 id="devId"></h2>
 	<img src="" id="photo" >
@@ -241,8 +244,8 @@
 			sendCmd("txPower", document.getElementById("txPowerNum").value );
 		}
 		function sendWifi_SSID_Pass(n){
-			sendCmd("net"+n, document.getElementById("ssid").value.padEnd(32) );
-			sendCmd("pass"+n, document.getElementById("pass").value.padEnd(32) );
+			sendCmd("net"+n, document.getElementById("net"+n).value.padEnd(32) );
+			sendCmd("pass"+n, document.getElementById("pass"+n).value.padEnd(32) );
 		}
 
 		var rot90 = false;
@@ -319,23 +322,28 @@
 
 		function DisplaySettings(bArr){
 		
-			let a = bArr;
+			let a = new Uint8Array(bArr);
 			let rL = bArr.byteLength;
 			if( rL < 10)
 				return; //avoid printing undefined
 
-			document.getElementById("magThreshold").innerText	= strFromStrRange(a, 0, 5);
-			document.getElementById("camQuality").innerText		= strFromStrRange(a, 5, 5);
-			document.getElementById("camResolution").innerText	= strFromStrRange(a, 10, 5);
-			document.getElementById("txPower").innerText		= strFromStrRange(a, 15, 5);
-
-			document.getElementById("svrUrl").innerText			= strFromStrRange(a, 20, 32);
+			let idx = 0;
+			document.getElementById("magThreshold").innerText	= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("camQuality").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("camResolution").innerText	= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("txPower").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
 
 			let MAX_STORED_NETWORKS = 10;
 			let NETWORK_NAME_LEN = 32;
+
 			for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
-				document.getElementById("net"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i, 32);
-				document.getElementById("pass"+i).innerText		= strFromStrRange(a, 52+(NETWORK_NAME_LEN*2)*i+32, 32);
+				document.getElementById("svrUrlVal"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
+			}
+
+
+			for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
+				document.getElementById("net"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
+				document.getElementById("pass"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
 			}
 
 		}
@@ -388,7 +396,7 @@
 			}else if( datType.startsWith("Stat") ){
 				DisplayStatus( dat );
 			}else if( datType.startsWith("Set") ){
-				DisplaySettings( dat );
+				DisplaySettings( dat, datLen );
 			}else if( datType.startsWith("Img") && datLen > 0){
 				//https://gist.github.com/candycode/f18ae1767b2b0aba568e
 				let arrayBufferView = new Uint8Array( dat );
@@ -398,9 +406,12 @@
 				let img = document.querySelector( "#photo" );
 				img.src = imageUrl;
 				camRot90(rot90);
-			}//else{
+			}else if( datType.startsWith("remPkts") ){
+				document.getElementById("remainingPackets").innerText = sFBa(dat);
 			//	console.log( respType );
-			//}
+			}else if( datType.startsWith("logout") ){
+				logout();
+			}
 		}
 
 

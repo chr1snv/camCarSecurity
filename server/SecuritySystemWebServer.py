@@ -149,8 +149,9 @@ class Device:
 		#print( "magAlarmTriggered " + self.magAlarmTriggered )
 		#print( "alarmOutput " + self.alarmOutput )
 
-	def fillSettings(self, datStr):
-		self.lastSettings =  postStr
+	def fillSettings(self, datStr, datStrLen ):
+		self.lastSettings = datStr
+		self.lastSettingsLen = datStrLen
 		self.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 	def fillImage(self, datStr, datStrLen):
@@ -174,10 +175,12 @@ class Client:
 					self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
 					okToSend = True
 				else:
-					logoutClientUsingKey(key)
+					await logoutClient(client)
 					self.login = None #not sure if necessary because this client instance would then be garbage collected
 		
 		if okToSend:
+			remPkts = str(self.login[LOGIN_REMAINING_RESPONSES_IDX]).encode('utf-8')
+			datInfoArr.append( ('remPkts', len(remPkts), remPkts) )
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
 			if self.login != None:
 				self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
@@ -190,6 +193,8 @@ validClientLogins = {}
 validClientLogins[b'user1'] = [b'pAswd1', 0, 0, 0, 0] #username(0), password(1), loginAttempts(2), loggedinAuthKey(3), remaining authorized responses(4)
 activeClientLogins = {}
 activeGetKeys = {}
+
+NUM_PKTS_A_LOGIN_AUTHORIZES = 10000
 
 LOGIN_USERNAME_IDX				= 0
 LOGIN_PASSWORD_IDX				= 1
@@ -205,10 +210,11 @@ def GetKeyIsActive(getKey):
 		return False
 
 
-def logoutClientUsingKey(key):
-	login = activeClientLogins[key]
+async def logoutClient(client):
+	login = client.login
 	login[LOGIN_REMAINING_RESPONSES_IDX] = 0
-	activeClientLogins[key] = None
+	client.sendPktIdx = await sendPkt(client.wSock, client.sendPktIdx, svrDevId, [('logout', 0, b'')] )
+	del activeClientLogins[login[LOGIN_AUTHKEY_IDX]]
 
 
 #pending commands
@@ -349,10 +355,12 @@ async def websocketHandler(websocket):
 					cmdDatArr = GetCommandListBytes()
 					#print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
 					await device.send( svrDevId, cmdDatArr )
-					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
-					await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+					lastStatTimeStr = str(device.lastStatusTime).encode('utf-8')
+					await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastStatTimeStr), lastStatTimeStr)] )
 				if datType.startswith(b"Set"):
-					device.fillSettings( datStr )
+					device.fillSettings( datStr, datLen )
+					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
+					await client.send( device.devId, [('Set', device.lastSettingsLen, device.lastSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 				if datType.startswith(b"Img"):
 					device.fillImage( datStr, datLen )
 					lastSetTimeStr = str(device.lastImageTime).encode('utf-8')
@@ -383,7 +391,7 @@ async def websocketHandler(websocket):
 							LOGIN_REMAINING_RESPONSES_IDX = 4
 							storedLogin[LOGIN_ATTEMPTS_IDX] = 0
 							storedLogin[LOGIN_AUTHKEY_IDX] = authKey
-							storedLogin[LOGIN_REMAINING_RESPONSES_IDX] = 1000
+							storedLogin[LOGIN_REMAINING_RESPONSES_IDX] = NUM_PKTS_A_LOGIN_AUTHORIZES
 							validClientLogins[pendingLoginUname] = storedLogin
 							client.login = storedLogin
 							print("setting authKey %s as active" % authKey)
@@ -409,7 +417,9 @@ async def websocketHandler(websocket):
 					elif datType.startswith(b'settings'):
 						#setLen = str(len(device.postSettings)).encode('utf-8')
 						lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
-						#print( 'sending settings to browser' )
+						print( 'req settings from dev' )
+						await device.send( svrDevId, [('getSettings', 0, b'')] )
+						print( 'sending last settings to browser' )
 						await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 					elif datType.startswith(b'image'):
 						#print( 'sending img to browser' )
@@ -417,7 +427,7 @@ async def websocketHandler(websocket):
 					elif datType.startswith(b'logout'):
 						key = datStr
 						if key == client.login[LOGIN_AUTHKEY_IDX]: #only allow user to logout themselves
-							logoutClientUsingKey(client.login[LOGIN_AUTHKEY_IDX])
+							await logoutClient(client)
 					else:
 						cmd = datType.strip()
 						val = datStr
@@ -517,7 +527,10 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					output.write("</style>")
 					output.write("<script src='commonFunctions.js'></script>")
 					output.write("<h2>Page Generated Time: " + now.strftime("%Y-%m-%d %H:%M:%S") + "</h2>")
-					output.write("<button onclick=\"logout()\">Log out</button>")
+					output.write("<table><tr>")
+					output.write("<td><button onclick=\"logout()\">Log out</button></td>")
+					output.write("<td><h4 style=\"margin-bottom:0px;\">Packets until auto-logout</h4></td><td><p id=\"remainingPackets\">?</p></td>")
+					output.write("</tr></table>")
 					output.write("<h1>Avaliable devices</h1>")
 					output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\')">Esp32 Pan tilt camera ' + str(device.devId) + '</button>')
 					output.write("</body>")

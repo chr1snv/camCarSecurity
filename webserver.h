@@ -73,7 +73,7 @@ uint16_t fillSettingsString( char * outputStr ){
 	uint16_t oIdx = 0;
 
 		//fill header
-	snprintf( &(outputStr[oIdx]), 11+1, "Stat" ); oIdx += 11;
+	snprintf( &(outputStr[oIdx]), 11+1, "Set" ); oIdx += 11;
 	snprintf( &(outputStr[oIdx]), 6+1, "% 6d", SETTINGS_RESPONSE_LENGTH ); oIdx += 6;
 
 	snprintf( &(outputStr[oIdx]),  5, "%i\n", MAG_ALARM_DELTA_THRESHOLD); oIdx += 5;
@@ -83,33 +83,36 @@ uint16_t fillSettingsString( char * outputStr ){
 	int8_t txPower;
 	esp_wifi_get_max_tx_power(&txPower);
 	snprintf( &(outputStr[oIdx]), 5, "%i\n", txPower); oIdx += 5;
+
 	Serial.println("fSS storedVals");
 	preferences.begin("storedVals", true);
+
+    char networkInfo[NETWORK_NAME_LEN];
+
+    //server urls
 		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
-			String svrUrlStr = preferences.getString("svrUrl"+i);
-			uint16_t svrUrlStrLen = min( (uint16_t)NETWORK_NAME_LEN, (uint16_t)svrUrlStr.length() );
-			memcpy( &(outputStr[oIdx]), svrUrlStr.c_str(), svrUrlStrLen ); 
-			memset( &(outputStr[oIdx]) + svrUrlStrLen,
-			' ', NETWORK_NAME_LEN - svrUrlStrLen ); oIdx += NETWORK_NAME_LEN;
+      memset( networkInfo, '\0', NETWORK_NAME_LEN );
+			preferences.getBytes("svrUrl"+i, networkInfo, NETWORK_NAME_LEN);
+			memcpy( &(outputStr[oIdx]), networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 		}
+
+    //networks and passwords
 		//Serial.println("svrUrl");
 		uint16_t storedNetworksSettingsStrStart = oIdx;
 		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
-				char networkInfo[NETWORK_NAME_LEN];
 			snprintf(storedPrefKey, 8,"net%i", i );
 			memset( networkInfo, '\0', NETWORK_NAME_LEN );
 				preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
-				memcpy( &(outputStr[oIdx]),
-					networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
+				memcpy( &(outputStr[oIdx]), networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 				//Serial.print("net");Serial.println(i);
 				snprintf(storedPrefKey, 8,"pass%i", i );
 			memset( networkInfo, '\0', NETWORK_NAME_LEN );
 				preferences.getBytes(storedPrefKey, &networkInfo[0], NETWORK_NAME_LEN);
 				ObfsucatePass(networkInfo, NETWORK_NAME_LEN);
-				memcpy( &(outputStr[oIdx]),
-					networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
+				memcpy( &(outputStr[oIdx]), networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 				//Serial.print("pass");Serial.println(i);
 		}
+
 	preferences.end();
 	memset( &(outputStr[oIdx]),
 			'\0', 1 ); oIdx += 1;//prevent segfault reboot from missing \0
