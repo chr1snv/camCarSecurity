@@ -114,8 +114,7 @@ uint16_t fillSettingsString( char * outputStr ){
 		}
 
 	preferences.end();
-	memset( &(outputStr[oIdx]),
-			'\0', 1 ); oIdx += 1;//prevent segfault reboot from missing \0
+	memset( &(outputStr[oIdx]), '\0', 1 ); oIdx += 1;//prevent segfault reboot from missing \0
 
 	return oIdx;
 }
@@ -387,14 +386,16 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if(!strncmp(cmd, "getSettings", 11)){
 		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
 		pktIdx += fillSettingsString(&lastCsiInfoStr[pktIdx]);
+    Serial.print("sendingSettings ");Serial.println(pktIdx);
 		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
 		sucessfulyHandledCmd = 20;
 	}
 	else if(!strncmp(cmd, "getStatus", 9)){
 		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
 		pktIdx += fillStatusString(&lastCsiInfoStr[pktIdx]);
+    Serial.print("sendingStatus ");Serial.println(pktIdx);
 		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
-		sucessfulyHandledCmd = 20;
+		sucessfulyHandledCmd = 22;
 	}
 
 	return sucessfulyHandledCmd;
@@ -585,7 +586,7 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 
 	if( esp_websocket_client_is_connected(webSockClient) ){
     //send a message to server 
-		Serial.print("send message to server ");
+		Serial.print("send to svr ");
 		int httpResponseCode;
 		uint8_t hdrOffset = fillPktHdr(lastCsiInfoStr);
 		if( postType == DEV_STATUS ){

@@ -32,7 +32,7 @@ void printPayload( uint16_t start, uint16_t end, const char * payload ){
 
 uint8_t lastReadPktIdx = 0;
 uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
-	uint8_t retVal; 
+	uint8_t retVal = 0; 
 
 	//check the response for pending commands
 	if ( payloadLen > WEB_SEND_HDR_LEN-1 ){
@@ -72,6 +72,7 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 				Serial.print( " datDatIdx " ); Serial.print( datDatIdx );
 				Serial.print( " datLen "); Serial.println( datLen );
 				retVal = doCommand( &(payload[datTypeIdx]), datLen, &(payload[datDatIdx]) );
+        Serial.print("doCmdRes "); Serial.println(retVal);
 				idx += datLen;
 				Serial.print( " idx " ); Serial.println( idx );
 			}

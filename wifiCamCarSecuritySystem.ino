@@ -145,9 +145,10 @@ void loop() {
 	if(--conPrints < 1){
 		conPrints = PRINT_PER_LINE;
 		uint8_t sNum = WiFi.softAPgetStationNum(); //print the number of connected clients (other esp32's)
-		Serial.print(sNum);
-		Serial.println("");
-		Serial.print("mainLoopsSinceWebSockStartedConnecting");Serial.println(mainLoopsSinceWebSockStartedConnecting);
+		Serial.print("numCliConec ");
+    Serial.print(sNum);
+		Serial.print(" mLoopsSinceWSConect");
+    Serial.println(mainLoopsSinceWebSockStartedConnecting);
 	}
 
 	//read sensors
