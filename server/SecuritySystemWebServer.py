@@ -366,6 +366,8 @@ async def websocketHandler(websocket):
 					lastSetTimeStr = str(device.lastImageTime).encode('utf-8')
 					#print('sending image to browser')
 					await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+				if datType.startswith(b"cmdResults"):
+					await client.send( device.devId, [ ('cmdResults', datLen, datStr) ] )
 			else: #request or command from client (browser http page)
 				client.wSock = websocket
 				if datType.startswith(b'auth'):

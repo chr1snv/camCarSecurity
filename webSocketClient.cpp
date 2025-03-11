@@ -5,6 +5,8 @@
 //#include <String>
 #include "GlobalDefinesAndFunctions.h"
 
+esp_websocket_client_handle_t webSockClient = NULL;
+
 void log_error_if_nonzero(String s, int v){
 	if( v != 0)
 		ESP_LOGI( tag, s );
@@ -30,9 +32,14 @@ void printPayload( uint16_t start, uint16_t end, const char * payload ){
 	Serial.print("|\n");
 }
 
+uint8_t AppendCommandResponse(char * outputBytes, uint8_t resp){
+  snprintf( outputBytes, 2+1, "%2i", resp );
+  return 2;
+}
+
 uint8_t lastReadPktIdx = 0;
 uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
-	uint8_t retVal = 0; 
+	uint8_t retVal = 0;
 
 	//check the response for pending commands
 	if ( payloadLen > WEB_SEND_HDR_LEN-1 ){
@@ -59,6 +66,13 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 		
 		if( numData > 0 && numData < 10 ){ // a number of commands was recieved
 			activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+      char respBytes[256];
+      uint16_t respIdx = 0;
+      respIdx = fillPktHdr(&respBytes[0]);
+      //fill response type and number of commands header
+    	snprintf( &(respBytes[respIdx]), 11+1, "cmdResults" ); respIdx += 11;
+	    snprintf( &(respBytes[respIdx]), 6+1, "% 6d", numData*2 ); respIdx += 6;
+
 			//do all recieved commands
 			for( uint8_t i = 0; i < numData; ++i ){
 				Serial.print("i "); Serial.println(i);
@@ -72,13 +86,20 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 				Serial.print( " datDatIdx " ); Serial.print( datDatIdx );
 				Serial.print( " datLen "); Serial.println( datLen );
 				retVal = doCommand( &(payload[datTypeIdx]), datLen, &(payload[datDatIdx]) );
+
+        respIdx += AppendCommandResponse(&(respBytes[respIdx]),  retVal);
+        
         Serial.print("doCmdRes "); Serial.println(retVal);
 				idx += datLen;
 				Serial.print( " idx " ); Serial.println( idx );
 			}
+
+      esp_websocket_client_send_bin(webSockClient, (const char *)&(respBytes[0]), respIdx, portMAX_DELAY);
+
 		}
 		payloadLen = 0;
 		Serial.println( "end doCommandsInRecievedData" );
+    
 	}
 
 	return retVal;

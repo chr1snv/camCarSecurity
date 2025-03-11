@@ -2,6 +2,14 @@
 #ifndef WEB_COM_DEFINES
 #define WEB_COM_DEFINES
 
+#include "esp_websocket_client.h"
+extern esp_websocket_client_handle_t webSockClient;
+#include "webSocketClient.h"
+
+#define CSI_INF_STR_LEN 1024 //768
+extern char lastCsiInfoStr[CSI_INF_STR_LEN];
+uint8_t fillPktHdr(char * outputBytes);
+
 #define CMD_BUFF_MAX_LEN 512
 
 #define MAX_NUM_SVRS 10

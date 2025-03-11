@@ -11,7 +11,8 @@
 #include "esp_netif.h"
 #include "esp_now.h"
 
-#define CONFIG_LESS_INTERFERENCE_CHANNEL    11
+#include "GlobalDefinesAndFunctions.h"
+
 #define CONFIG_SEND_FREQUENCY               100
 
 static const uint8_t CONFIG_CSI_SEND_MAC[] = {0x1a, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -38,10 +39,9 @@ static void wifi_init()
 }
 */
 
-#define CSI_INF_STR_LEN 1024 //768
 #define INF_STR_EXTRA_DATA_LEN 50
 #define CSI_INF_PRINT_LEN CSI_INF_STR_LEN-INF_STR_EXTRA_DATA_LEN
-static char lastCsiInfoStr[CSI_INF_STR_LEN];
+char lastCsiInfoStr[CSI_INF_STR_LEN];
 static void wifi_csi_rx_cb(void *ctx, wifi_csi_info_t *info)
 {
     if (!info || !info->buf) {

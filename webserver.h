@@ -6,11 +6,6 @@
 httpd_handle_t camera_httpd = NULL;
 
 
-//#include "WebComDefines.h"
-
-#include "esp_websocket_client.h"
-esp_websocket_client_handle_t webSockClient = NULL;
-#include "webSocketClient.h"
 
 uint16_t serverUrlLen = 0;
 uint16_t serverCertLen = 0;
@@ -342,20 +337,22 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		sucessfulyHandledCmd = 15;
 	}
 	else if(!strncmp(cmd, "svrCertLen", 10)){
-
+		uint8_t certNum = cmd[10] - '0';
 		preferences.begin("storedVals", false);
 			uint16_t certLen = atoir_n(&value[valLen-1], valLen );
-			preferences.putInt( "svrCertLen", certLen );
-			Serial.print("storing svrCert len "); Serial.println(certLen);
+			preferences.putInt( "svrCertLen"+certNum, certLen );
+			Serial.print("storing svrCert len num "); Serial.print(certNum); Serial.println(" len ");Serial.println(certLen);
 		preferences.end();
 		sucessfulyHandledCmd = 16;
 	}
 	else if(!strncmp(cmd, "svrCert", 7)){
 		uint8_t certNum = cmd[7] - '0';
+    uint8_t certPartIdx = cmd[9] - '0';
 		preferences.begin("storedVals", false);
-			uint16_t storLen = min( valLen, (uint16_t)SVR_CERT_PART_LENGTH);
-			preferences.putBytes("svrCert"+certNum, value, storLen );
-			Serial.print("storing svrCert "); Serial.print(certNum); Serial.print(" len ");Serial.println(storLen);
+			uint16_t storLen = min( valLen, (uint16_t)SVR_CERT_PART_LENGTH );
+			snprintf( storedPrefKey, 10+1,"svrCert%i_%i", certNum,certPartIdx );
+			preferences.putBytes( storedPrefKey, value, storLen );
+			Serial.print("storing svrCert "); Serial.print(certNum); Serial.print("_"); Serial.print(certPartIdx); Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
 		sucessfulyHandledCmd = 17;
 	}
@@ -403,23 +400,24 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 
 //read the stored server cert back from preferences
 void readSvrCert(uint8_t num, uint16_t & length, char * svrCert ){
-	//Serial.print("readSvrCert len ");
+	Serial.print("readSvrCert len ");
 	preferences.begin("storedVals", true);
-	length = preferences.getInt( "svrCertLen"+num );
-	//Serial.println( length );
-	uint16_t partIdx;
-	uint16_t partLen;
-	for( uint8_t i = 0; i < NUM_SVR_CERT_PARTS; ++i ){
-		partIdx = i*SVR_CERT_PART_LENGTH;
-		uint16_t remLen = length - partIdx;
-		partLen = min( (uint16_t)SVR_CERT_PART_LENGTH, remLen);
-		//Serial.print( "partIdx " );Serial.print(i);Serial.print(" ");Serial.print( partIdx ); 
-		//Serial.print( " remLen " ); Serial.print(remLen); Serial.print( " partLen " );Serial.println( partLen );
-		if( partLen <=0 )
-			break;
-		preferences.getBytes("svrCert"+i, &svrCert[i*SVR_CERT_PART_LENGTH], partLen );
-	}
-	svrCert[length] = '\0';
+		length = preferences.getInt( "svrCertLen"+num );
+		Serial.println( length );
+		uint16_t partIdx;
+		uint16_t partLen;
+		for( uint8_t i = 0; i < NUM_SVR_CERT_PARTS; ++i ){
+			partIdx = i*SVR_CERT_PART_LENGTH;
+			uint16_t remLen = length - partIdx;
+			partLen = min( (uint16_t)SVR_CERT_PART_LENGTH, remLen);
+			Serial.print( "partIdx " );Serial.print(i);Serial.print(" ");Serial.print( partIdx ); 
+			Serial.print( " remLen " ); Serial.print(remLen); Serial.print( " partLen " );Serial.println( partLen );
+			if( partLen <=0 )
+				break;
+			snprintf( storedPrefKey, 10+1,"svrCert%i_%i", num,i );
+			preferences.getBytes(storedPrefKey, &svrCert[i*SVR_CERT_PART_LENGTH], partLen );
+		}
+		svrCert[length] = '\0';
 	preferences.end();
 }
 

@@ -229,9 +229,48 @@
 			let svrUrl = document.getElementById('svrUrlVal'+idx).value;
 			sendCmd('svrUrl'+idx, svrUrl );
 		}
-		function sendSvrCert(idx){
-			let svrCert = document.getElementById('svrCert'+idx).value;
-			sendCmd( 'svrCert'+idx, svrCert );
+		let pendingSendSvrCertStr = '';
+		let pendingSendSvrCertNum = 0;
+		let pendingSendSvrCertCbIter = 0;
+		function continueSendSvrCert( ){
+
+			//send certificate in parts
+
+			let certStr = pendingSendSvrCertStr;
+			let certStrLen = certStr.length;
+
+			if( pendingSendSvrCertCbIter == 0 ){
+				let certStrLenStr = ""+certStrLen;
+				pendingSendSvrCertCbIter = 1;
+				sendCmd("svrCertLen"+pendingSendSvrCertNum, certStrLenStr, certStrLenStr.length );
+				
+				return;
+			}
+		
+			let NUM_SVR_CERT_PARTS = 8;
+			let SVR_CERT_PART_LENGTH = 256;
+			let partIdx = 0;
+			let partLen = SVR_CERT_PART_LENGTH;
+
+			let i = pendingSendSvrCertCbIter - 1;
+			partIdx = i*SVR_CERT_PART_LENGTH;
+			partLen = Math.min( SVR_CERT_PART_LENGTH, certStrLen - partIdx);
+			if( partLen <= 0 ){ //finished sending all parts of cert
+				pendingSendSvrCertStr = '';
+				pendingSendSvrCertCbIter = 0;
+				return;
+			}
+			let certPart = certStr.slice(partIdx,partIdx+partLen);
+			pendingSendSvrCertCbIter += 1;
+			sendCmd("svrCert"+pendingSendSvrCertNum+"_"+i, certPart, partLen );
+
+		}
+		function sendSvrCert( num ){
+			if( pendingSendSvrCertCbIter == 0 ){ //prevent interrupting sending
+				pendingSendSvrCertStr = document.getElementById("svrCert"+num).value;
+				pendingSendSvrCertNum = num;
+				continueSendSvrCert( );
+			}
 		}
 
 		function sendMagThreshold(){
@@ -406,6 +445,13 @@
 				let img = document.querySelector( "#photo" );
 				img.src = imageUrl;
 				camRot90(rot90);
+			}else if(datType.startsWith("cmdResults")){
+				let a = dat;//new Uint8Array( dat );
+				for(let i = 0; i < datLen; ++i){
+					let completedCmdId = parseInt(sFBa(a.slice(i*2,(i+1)*2)));
+					if( completedCmdId == 16 || completedCmdId == 17 )
+						continueSendSvrCert();
+				}
 			}else if( datType.startsWith("remPkts") ){
 				document.getElementById("remainingPackets").innerText = sFBa(dat);
 			//	console.log( respType );

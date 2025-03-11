@@ -42,11 +42,13 @@ let webSocketSvrUrlParts = document.URL.split(":");
 const webSocketSvrUrl = webSocketSvrUrlParts[0] + ":" + webSocketSvrUrlParts[1] + ":" + "9999"
 let socketInstance = null;
 let queuedToSendWebsocketMessage = null;
+let wsCallBack = null;
 let socketErrorTimeoutHandle = null;
-function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=false){
+function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=false, callBack=undefined){
 
 	if( socketInstance == null ){
 		queuedToSendWebsocketMessage = signalingMessage;
+		wsCallBack = callBack;
 		socketInstance = new WebSocket(webSocketSvrUrl);
 		socketInstance.binaryType = 'arraybuffer';
 		
@@ -115,10 +117,15 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 
 			}
 			
+			if(wsCallBack != null){
+				wsCallBack();
+				//wsCallBack = undefined;
+			}
 		}
 
 	}else{
 		if( socketInstance.readyState == socketInstance.OPEN ){
+			wsCallBack = callBack;
 			socketInstance.send(signalingMessage);
 		}else{
 			console.log( "socketInstance not readyToSend readyState " + socketInstance.readyState );
@@ -132,7 +139,7 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 }
 
 let pktIdx = 0;
-function sendCmds( datas ) {
+function sendCmds( datas, callback ) {
 
 	let pktIdxStr = pktIdx.toString().padStart(3);
 	let devIdStr = "0".padStart(4);
@@ -160,15 +167,15 @@ function sendCmds( datas ) {
 		sendStr += datTypeStr+datLenStr+dat;
 	}
 
-	sendWebsocketServerMessage(sendStr);
+	sendWebsocketServerMessage(sendStr, callback);
 	pktIdx += 1;
 	if( pktIdx > 255 )
 		pktIdx = 0
 }
 
-function sendCmd(datType, dat, datLen=undefined){
+function sendCmd(datType, dat, datLen=undefined, callBack=undefined){
 	key = localStorage.getItem('authKey');
-	sendCmds([['auth', key, key.length],[datType, dat, datLen]]);
+	sendCmds([['auth', key, key.length],[datType, dat, datLen]], callBack);
 }
 
 pendingUrlRequest = [];
