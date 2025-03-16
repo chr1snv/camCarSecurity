@@ -21,7 +21,7 @@ static esp_err_t index_handler(httpd_req_t *req){
 	return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
 }
 
-#define STATUS_RESPONSE_LENGTH 80 //3+2+5+5+5+5+5+5+5+5+5+5+10+5+5+5
+#define STATUS_RESPONSE_LENGTH 85 //3+2+5+5+5+5+5+5+5+5+5+5+10+5+5+5
 uint16_t fillStatusString(char * outStr){
   //+1's to snprintf lengths because of \0 null terminator always appended
 
@@ -51,6 +51,7 @@ uint16_t fillStatusString(char * outStr){
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmDiff); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmTriggered); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", alarmOutput); idx += 5;
+  snprintf( &(outStr[idx]), 5+1,  "% 5i", activelyCommanded); idx += 5;
 	//memset() //snprintf will set a \0 at end so don't need to memset
 	return idx;
 }
@@ -249,7 +250,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if ( !strncmp(cmd, "mainDelay", 9) ){
 		uint8_t del = atoir_n(&value[valLen-1], valLen);
 		Serial.print("mainDelay"); Serial.println(del);
-		del = max( min((uint8_t)100, del), (uint8_t)10 );
+		del = max( min((uint8_t)100, del), (uint8_t)10 ); //clamp setting to between 10 and 100 millis
 		mainLoopDelayMillis = del;
 		sucessfulyHandledCmd = 21;
 	}
@@ -263,6 +264,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.println(servo1Angle);
 		Serial.println("Up");
 		sucessfulyHandledCmd = 5;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "left", 4)) {
 		if(servo2Angle <= 170) {
@@ -272,6 +274,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.println(servo2Angle);
 		Serial.println("Left");
 		sucessfulyHandledCmd = 6;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "right", 5)) {
 		if(servo2Angle >= 10) {
@@ -281,6 +284,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.println(servo2Angle);
 		Serial.println("Right");
 		sucessfulyHandledCmd = 7;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "down", 4)) {
 		if(servo1Angle >= 10) {
@@ -290,6 +294,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.println(servo1Angle);
 		Serial.println("Down");
 		sucessfulyHandledCmd = 8;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "center", 6)) {
 		servo1Angle = 90;
@@ -301,6 +306,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		//Serial.println(servo2Angle);
 		//Serial.println("center");
 		sucessfulyHandledCmd = 9;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "Light", 5)){
 		lightLedValue = !lightLedValue;
@@ -308,16 +314,19 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.print("Light");
 		Serial.println(lightLedValue);
 		sucessfulyHandledCmd = 10;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "ArmAlarm", 8)){
 		ArmAlarm(true);
 		Serial.println("ArmAlarm");
 		sucessfulyHandledCmd = 11;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "DisarmAlarm", 11)){
 		ArmAlarm(false);
 		Serial.println("DisarmAlarm");
 		sucessfulyHandledCmd = 12;
+    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "magAlrThrsh", 11)){
 		MAG_ALARM_DELTA_THRESHOLD = atoir_n(&value[valLen-1], valLen);
@@ -584,7 +593,7 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 
 	if( esp_websocket_client_is_connected(webSockClient) ){
     //send a message to server 
-		Serial.print("send to svr ");
+		Serial.print( " to Wss " );
 		int httpResponseCode;
 		uint8_t hdrOffset = fillPktHdr(lastCsiInfoStr);
 		if( postType == DEV_STATUS ){
@@ -608,7 +617,7 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 			}
 		}
 
-		Serial.print("POST resp: ");
+		Serial.print( " resp: " );
 		Serial.println(httpResponseCode);
 	}
 

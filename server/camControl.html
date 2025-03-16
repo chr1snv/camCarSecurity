@@ -129,12 +129,14 @@
 			<th>Mag Alarm Diff</th>
 			<th>Mag Alrm Trgr</th>
 			<th>Alarm Output</th>
+			<th>Active</th>
 		</tr>
 		<tr>
 			<td id="magHeading"></td>
 			<td id="magAlarmDiff"></td>
 			<td id="magAlarmTrgr"></td>
 			<td id="alarmOutput"></td>
+			<td id="activelyCommanded"></td>
 		</tr>
 	</table>
 	<h2 onclick="FetchAndShowOrHideSettingsTab(this)" style="cursor: pointer;">> Settings</h2>
@@ -422,6 +424,8 @@
 			document.getElementById("magAlarmDiff").innerText	= parseInt(sFBa(a.slice(65, 65+5)));
 			document.getElementById("magAlarmTrgr").innerText	= parseInt(sFBa(a.slice(70, 70+5)));
 			document.getElementById("alarmOutput").innerText	= parseInt(sFBa(a.slice(75, 75+5)));
+			
+			document.getElementById("activelyCommanded").innerText	= parseInt(sFBa(a.slice(80, 80+5)));
 	
 		}
 

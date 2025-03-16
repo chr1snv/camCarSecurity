@@ -31,6 +31,8 @@ Preferences preferences;
 
 #include "GlobalDefinesAndFunctions.h"
 
+#include "morseCode.h"
+
 #define SERVO_1      12//14
 #define SERVO_2      13//15
 
@@ -138,17 +140,20 @@ void setup() {
 	}
 }
 
-#define PRINT_PER_LINE 10
-uint8_t conPrints = PRINT_PER_LINE;
+#define MAIN_LOOPS_BTWN_STAT_PRINTS 100
+uint8_t mainLoopsUntilPrintStatus = MAIN_LOOPS_BTWN_STAT_PRINTS;
 void loop() {
 	
-	if(--conPrints < 1){
-		conPrints = PRINT_PER_LINE;
+	if(--mainLoopsUntilPrintStatus < 1){
+		mainLoopsUntilPrintStatus = MAIN_LOOPS_BTWN_STAT_PRINTS;
 		uint8_t sNum = WiFi.softAPgetStationNum(); //print the number of connected clients (other esp32's)
-		Serial.print("numCliConec ");
+		Serial.print("nCli ");
     Serial.print(sNum);
-		Serial.print(" mLoopsSinceWSConect");
+		Serial.print(" mLoopsSinceWSConec ");
     Serial.println(mainLoopsSinceWebSockStartedConnecting);
+    char loopsSinceConnectStr[16];
+    uint8_t lscsLen = snprintf( loopsSinceConnectStr, 16, " swc %i  ", mainLoopsSinceWebSockStartedConnecting );
+    queueStringForMorseLedOutput(loopsSinceConnectStr, lscsLen );
 	}
 
 	//read sensors
@@ -178,7 +183,7 @@ void loop() {
 			  PostAndFetchDataFromCloudServer(IMAGE);  //send image
 			PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
 		}
-    	--activelyCommanded;
+    --activelyCommanded;
 
 		doCommandsInRecievedData(payloadLen, payload);
 
@@ -188,6 +193,7 @@ void loop() {
 		Serial.print("."); //print a dot while not connected to an ap for uplink
 	}
 	
+  morseOutputLedUpdate( redLEDPin, true );
 
 	delay(mainLoopDelayMillis);
 }
