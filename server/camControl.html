@@ -68,8 +68,8 @@
 	</table>
 	<table>
 		<tr>
-			<td ><button id="armAlarmButton" class="button" onclick="ArmDisarmAlarm('ArmAlarm');">Arm Alarm</button></td>
-			<td ><button id="disarmAlarmButton" class="button" onclick="ArmDisarmAlarm('DisarmAlarm');">Disarm Alarm</button></td>
+			<td ><button id="armAlarmButton" class="button" onclick="ArmDisarmAlarm(1);">Arm Alarm</button></td>
+			<td ><button id="disarmAlarmButton" class="button" onclick="ArmDisarmAlarm(0);">Disarm Alarm</button></td>
 		</tr>
 	</table>
 	<br/>
@@ -214,15 +214,17 @@
 		
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
-		function ArmDisarmAlarm(x){
-			if(x == "ArmAlarm"){
+		function SetArmDisarmBtnColors(x){
+			if(x > 0){
 				document.getElementById("armAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 				document.getElementById("disarmAlarmButton").style.backgroundColor = clickableButtonBgColor;
-			}else if( x == "DisarmAlarm"){
+			}else{
 				document.getElementById("armAlarmButton").style.backgroundColor = clickableButtonBgColor;
 				document.getElementById("disarmAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
 			}
-			sendCmd(x);
+		}
+		function ArmDisarmAlarm(x){
+			sendCmd(x.toString());
 		}
 		
 		
@@ -405,7 +407,9 @@
 			if( rL < 80 ) //avoid overwriting with NaN/undefined on bad response
 				return;
 
-			document.getElementById("alarmArmed").innerText		= parseInt(sFBa(a.slice(0, 3)));
+			let alarmSet = 										  parseInt(sFBa(a.slice(0, 3)));
+			SetArmDisarmBtnColors(alarmSet);
+			document.getElementById("alarmArmed").innerText		= alarmSet;
 			document.getElementById("light").innerText			= parseInt(sFBa(a.slice(3, 3+2)));
 			document.getElementById("magArmX").innerText		= parseInt(sFBa(a.slice(5, 5+5)));
 			document.getElementById("magArmY").innerText		= parseInt(sFBa(a.slice(10, 10+5)));

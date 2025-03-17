@@ -61,6 +61,9 @@ async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
 	pktNum += 1
 	return pktNum
 
+def curMillis():
+	return int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+
 #last status
 class Device:
 
@@ -165,6 +168,21 @@ class Client:
 		self.sendPktIdx = 0
 		self.wSock = None
 		self.login = None
+		self.addr = None
+		self.loginAttempts = 0
+		self.nextAllowedLoginAttemptTime = curMillis()
+	
+	def getAndIncrementNextLoginAttemptTime(self, time):
+		ret = self.nextAllowedLoginAttemptTime
+		if time > self.nextAllowedLoginAttemptTime:
+			self.nextAllowedLoginAttemptTime = self.nextAllowedLoginAttemptTime + pow(10,self.loginAttempts)
+			self.loginAttempts += 1
+		return ret
+	
+	def resetLoginTimeout(self):
+		self.loginAttempts = 0
+		self.nextAllowedLoginAttemptTime = curMillis() + 1000
+	
 	async def send( self, fromDevId, datInfoArr, sendWithoutAuth=False): #, auth ):
 		okToSend = False
 		if self.wSock != None:
@@ -179,8 +197,9 @@ class Client:
 					self.login = None #not sure if necessary because this client instance would then be garbage collected
 		
 		if okToSend:
-			remPkts = str(self.login[LOGIN_REMAINING_RESPONSES_IDX]).encode('utf-8')
-			datInfoArr.append( ('remPkts', len(remPkts), remPkts) )
+			if not sendWithoutAuth:
+				remPkts = str(self.login[LOGIN_REMAINING_RESPONSES_IDX]).encode('utf-8')
+				datInfoArr.append( ('remPkts', len(remPkts), remPkts) )
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
 			if self.login != None:
 				self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
@@ -317,7 +336,7 @@ async def websocketHandler(websocket):
 		#msg = await websocket.read_message()#frame(4096)
 		#print(msg[:50])
 		#async for msg in websocket:
-		rcvTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+		rcvTime = curMillis()
 		#print(dir(websocket))
 		#msgOpcode = 
 		msgLen = len(msg)
@@ -370,6 +389,7 @@ async def websocketHandler(websocket):
 					await client.send( device.devId, [ ('cmdResults', datLen, datStr) ] )
 			else: #request or command from client (browser http page)
 				client.wSock = websocket
+				client.addr = websocket.remote_address
 				if datType.startswith(b'auth'):
 					pktAuth = datStr
 					if not pktAuth in activeClientLogins:
@@ -381,10 +401,16 @@ async def websocketHandler(websocket):
 					loginPass = datStr
 					print( 'loginPass: pendingLoginUname %s loginPass %s' % (pendingLoginUname, loginPass) )
 					try:
+						nextAllowedAttemptTime = client.getAndIncrementNextLoginAttemptTime(rcvTime)
+						if nextAllowedAttemptTime  > rcvTime:
+							raise Exception("rate limit wait %i secs" % ((nextAllowedAttemptTime - rcvTime )/1000) )
+						if not pendingLoginUname in validClientLogins.keys():
+							raise Exception("username not found")
 						storedLogin = validClientLogins[pendingLoginUname]
 						print('UserName found')
 						if storedLogin[0] == loginPass:
 							print('loginPassMatches')
+							client.resetLoginTimeout()
 							authKey = getRandomASCIIByteArrWithLength(16).decode('utf-8').encode('utf-8')
 							LOGIN_USERNAME_IDX = 0
 							LOGIN_PASSWORD_IDX = 1
@@ -404,7 +430,7 @@ async def websocketHandler(websocket):
 							print("password doesn't match")
 							await client.send( svrDevId, [('authErr', 0, b'')], True )
 					except Exception as e:
-						print('username not found %s' % e)
+						print(' %s' % e)
 						await client.send( svrDevId, [('authErr', 0, b'')], True )
 				elif pktAuth != '': #a valid pktAuth has been recieved for the data packet
 					#the following requests are allowed
