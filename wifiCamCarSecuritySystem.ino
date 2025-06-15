@@ -31,10 +31,21 @@ Preferences preferences;
 
 #include "GlobalDefinesAndFunctions.h"
 
-#include "morseCode.h"
 
-#define SERVO_1      12//14
-#define SERVO_2      13//15
+
+#include <ESP32Servo.h>
+const uint8_t ServoOutputPins[] = { 
+    12/*14*/,
+    13/*15*/,
+    15,
+    14,
+    2,
+    4
+  };
+uint8_t numServos = 0;
+#define MAX_NUM_SERVOS 6
+Servo servos[MAX_NUM_SERVOS];
+int servoAngles[MAX_NUM_SERVOS];
 
 #define ALARM_OUTPUT_PIN 2 //pull down strapping pin
 
@@ -46,23 +57,22 @@ bool lightLedValue = false;
 
 bool alarmArmed = false;
 bool alarmOutput = false;
+
+
+
+#include "morseCode.h"
+
+#include "temperatureSensor.h"
+#include "signalStrengthAndMotionDetection.h"
+#include "camera.h"
+
+
 void UpdateAlarmOutput(bool on){
 	alarmOutput = on;
 	digitalWrite(ALARM_OUTPUT_PIN, LOW);
 }
 
-#include <ESP32Servo.h>
-#include "temperatureSensor.h"
-#include "signalStrengthAndMotionDetection.h"
-#include "camera.h"
 #include "magAccelGyroSense.h"
-
-Servo servo1;
-Servo servo2;
-
-int servo1Angle = 90;
-int servo2Angle = 90;
-
 
 void ArmAlarm(bool enable){
 	if(enable){
@@ -85,13 +95,16 @@ uint8_t mainLoopDelayMillis = 100;
 void setup() {
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 
+  preferences.begin("storedVals", true);
+  preferences.getUChar( "numServos", numServos);
+  preferences.end();
+
 	//init servos
-	servo1.setPeriodHertz(50);    // standard 50 hz servo
-	servo2.setPeriodHertz(50);    // standard 50 hz servo
-	servo1.attach( SERVO_1 ); //defaults to 500, 2500 microseconds //, 1000, 2000);
-	servo2.attach( SERVO_2 ); //, 1000, 2000);
-	servo1.write(servo1Angle);
-	servo2.write(servo2Angle);
+  for(uint8_t sNum = 0; sNum < numServos; ++sNum){
+	  servos[sNum].setPeriodHertz(50);    // standard 50 hz servo
+	  servos[sNum].attach( ServoOutputPins[sNum] ); //defaults to 500, 2500 microseconds //, 1000, 2000);
+	  servos[sNum].write(servoAngles[sNum]); //start at default angle
+  }
 
 	//init lights
 	pinMode(LightLEDPin, OUTPUT);

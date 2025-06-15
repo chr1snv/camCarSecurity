@@ -2,6 +2,7 @@
 #ifndef WEB_COM_DEFINES
 #define WEB_COM_DEFINES
 
+
 #include "esp_websocket_client.h"
 extern esp_websocket_client_handle_t webSockClient;
 #include "webSocketClient.h"

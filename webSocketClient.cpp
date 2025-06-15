@@ -37,7 +37,8 @@ uint8_t AppendCommandResponse(char * outputBytes, uint8_t resp){
 	return 2;
 }
 
-uint8_t lastReadPktIdx = 0;
+//keep track of last packet recived so commands are only done once in case network connection sends multiple packets
+uint8_t lastReadPktIdx = 99; //initalize with something other than zero because the first packet will be rejected if it's idx matches this
 uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 	uint8_t retVal = 0;
 
@@ -53,7 +54,6 @@ uint8_t doCommandsInRecievedData( uint16_t payloadLen, const char * payload ){
 		Serial.print(" pktIdx ");
 		Serial.println( pktIdx );
 		if(pktIdx == lastReadPktIdx){
-			lastReadPktIdx = pktIdx;
 			return 0;
 		}else{
 			lastReadPktIdx = pktIdx;

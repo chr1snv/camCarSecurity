@@ -9,7 +9,7 @@
 #define SSIDPASSLEN 9
 char APssid[SSIDPASSLEN+1] = {0,0,0,0,0,0,0,0,0,0}; //+1 for string null terminator '\0'
 char APpassword[SSIDPASSLEN+1] = {0,0,0,0,0,0,0,0,0,0};
-#define APhideSSid   1 //1 hide ssid
+#define APhideSSid   0 //1 hide ssid
 #define APmaxClients 4 //1-4
 
 //wifi_band_t supportedBands;
@@ -344,13 +344,14 @@ void connectWiFi(uint8_t channelToCreateAp){
 		fillStringWithRandomASCII(APpassword, SSIDPASSLEN);
 		Serial.print("creating wifi ap with ssid "); Serial.print(APssid); Serial.print(" password "); Serial.println(APpassword);
 		WiFi.softAP(APssid, APpassword, channelToCreateAp, APhideSSid, APmaxClients);
+
+    esp_wifi_set_max_tx_power(20); //range is [8, 84] corresponding to 2dBm - 20dBm
 	}else{
 		//connected to network so don't have to start an access point
 	}
 
-	esp_wifi_set_max_tx_power(8); //range is [8, 84] corresponding to 2dBm - 20dBm
 	int8_t power;
 	esp_wifi_get_max_tx_power(&power);
-	Serial.print("Power:");
+	Serial.print("Wifi tx power: ");
 	Serial.println( power );
 }

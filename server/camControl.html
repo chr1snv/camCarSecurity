@@ -68,12 +68,12 @@
 	</table>
 	<table>
 		<tr>
-			<td ><button id="armAlarmButton" class="button" onclick="ArmDisarmAlarm(1);">Arm Alarm</button></td>
-			<td ><button id="disarmAlarmButton" class="button" onclick="ArmDisarmAlarm(0);">Disarm Alarm</button></td>
+			<td ><button id="armAlarmButton" class="button" onclick="sendCmd('ArmAlarm');">Arm Alarm</button></td>
+			<td ><button id="disarmAlarmButton" class="button" onclick="sendCmd('DisarmAlarm');">Disarm Alarm</button></td>
 		</tr>
 	</table>
 	<br/>
-	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">v Status</h2>
+	<h2>Connection Status</h2>
 	<table>
 		<tr>
 			<!--<th>Local Time</th>
@@ -90,7 +90,7 @@
 			<td id="pktNum"></td>
 		</tr>
 	</table>
-	<br/><br/><br/>
+	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">v Status</h2>
 	<table id="statusDisp" style="border:1px sold;">
 		<tr>
 			<th>alarm armed</th>
@@ -159,16 +159,22 @@
 			<tr>
 				<td><input id="magThresholdNum" type="number" min="0" max="500" value="20"></input></td>
 				<td><button onclick="sendMagThreshold();">Set Mag Alarm Threshold</button></td>
+			</tr>
+			<tr>
 				<td><input id="camQualityNum" type="number" min="0" max="63" value="30"></input></td>
-				<td><button onclick="sendCamQuality();">Set Cam Quality (0-63)</button></td>
+				<td><button onclick="sendCamQuality();">Set Cam Quality (63 worst)-(0 best)</button></td>
+			</tr>
+			<tr>
 				<td><input id="txPowerNum" type="number" min="8" max="80" value="50" title="[8, 84] -> 2dBm - 20dBm"></input></td>
-				<td><button onclick="sendTxPower();">Set Tx Power (8-80)</button></td>
+				<td><button onclick="sendTxPower();">Set Tx Power (8 lowest)-(80 highest)</button></td>
 			</tr>
 			<tr>
 				<td><button onclick="sendCmd('camFlipV', 1);">Vert Flip</button></td>
 				<td><button onclick="sendCmd('camFlipV', 0);">Vert No Flip</button></td>
 				<td><button onclick="sendCmd('camFlipH', 1);">Horiz Flip</button></td>
 				<td><button onclick="sendCmd('camFlipH', 0);">Horiz No Flip</button></td>
+			</tr>
+			<tr>
 				<td><button onclick="camRot90(1);">90deg Rotate</button></td>
 				<td><button onclick="camRot90(0);">No Rotate</button></td>
 			</tr>
@@ -178,6 +184,10 @@
 				<td><button onclick="sendCmd('camRes', 'VGA');">VGA</button></td>
 				<td><button onclick="sendCmd('camRes', 'SVGA');">SVGA</button></td>
 			</tr>
+			<tr>
+				<td><input id="devDescription" type="text" maxlength="32" value="Description"></input></td>
+				<td><button onclick="sendDevDescription();">Set Device Description</button></td>
+			</tr>
 			</table>
 			<h3 onclick="toggleDisp(this, 'storedSvrUrlTable')" style="cursor: pointer;">> SvrUrls</h3>
 			<table id="storedSvrUrlTable" style="display:None;">
@@ -185,6 +195,35 @@
 			<h3 onclick="toggleDisp(this, 'storedSsidsTable')" style="cursor: pointer;">> Networks</h3>
 			<table id="storedSsidsTable" style="display:None;">
 			</table>
+			<h3 onclick="FetchAndShowOrHideIOConfigTab(this)" style="cursor: pointer;">> I/O Config</h3>
+
+			<div id="ioConfigDisp" style="display:None;">
+				<h4>Warning! <br/>
+					config inconsistent with hardware will cause incorrect interface <br/>
+					and could lead to unintened outputs causing damage</h4>
+				<table>
+					<tr>
+						<td><input id="configNumServos" type="number" min="0" max="6"></input></td>
+						<td><button onclick="sendConfigNumServos()">Set Num Servos</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasLight" type="checkbox"></input></td>
+						<td><button onclick="setConfigHasLight()">Set Has Light</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasAlarm" type="checkbox"></input></td>
+						<td><button onclick="setConfigHasAlarm()">Set Has Alarm</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasMic" type="checkbox"></input></td>
+						<td><button onclick="setConfigHasMic()">Set Has Mic</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasSpkr" type="checkbox"></input></td>
+						<td><button onclick="setConfigHasSpkr()">Set Has Speaker</button></td>
+					</tr>
+				</table>
+			</div>
 		</div>
 		<script src="commonFunctions.js"></script>
 		<script>
@@ -211,6 +250,14 @@
 			}else{
 			}
 		}
+
+		function FetchAndShowOrHideIOConfigTab(titleElm){
+			let ioConfigShown = toggleDisp(titleElm, 'ioConfigDisp');
+			if( ioConfigShown ){
+				sendCmd('ioConfig');
+			}else{
+			}
+		}
 		
 		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
 		const nonClickableButtonBgColor = "#8fa9d7";
@@ -227,6 +274,10 @@
 			sendCmd(x.toString());
 		}
 		
+		
+		function sendDevDescription(){
+			sendCmd("devDescrp", document.getElementById("devDescription").value );
+		}
 		
 		
 		function sendSvrUrl(idx){
@@ -275,6 +326,22 @@
 				pendingSendSvrCertNum = num;
 				continueSendSvrCert( );
 			}
+		}
+		
+		function sendConfigNumServos(){
+			sendCmd("cfgNumServo", document.getElementById("configNumServos").value );
+		}
+		function sendConfigHasLight(){
+			sendCmd("cfgHasLght", document.getElementById("configHasLight").value );
+		}
+		function sendConfigHasAlarm(){
+			sendCmd("cfgHasAlrm", document.getElementById("configHasAlarm").value );
+		}
+		function sendConfigHasMic(){
+			sendCmd("cfgHasMic", document.getElementById("configHasMic").value );
+		}
+		function sendConfigHasSpeaker(){
+			sendCmd("cfgHasSpkr", document.getElementById("configHasSpkr").value );
 		}
 
 		function sendMagThreshold(){

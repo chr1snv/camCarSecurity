@@ -21,15 +21,15 @@ static esp_err_t index_handler(httpd_req_t *req){
 	return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
 }
 
-#define STATUS_RESPONSE_LENGTH 85 //3+2+5+5+5+5+5+5+5+5+5+5+10+5+5+5
+#define STATUS_RESPONSE_LENGTH 85+(5*MAX_NUM_SERVOS) //3+2+5+5+5+5+5+5+5+5+5+5+10+5+5+5
 uint16_t fillStatusString(char * outStr){
-  //+1's to snprintf lengths because of \0 null terminator always appended
+	//+1's to snprintf lengths because of \0 null terminator always appended
 
 	uint16_t idx = 0;
 
 	//fill header
 	snprintf( &(outStr[idx]), 11+1, "Stat" ); idx += 11;
-	snprintf( &(outStr[idx]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH ); idx += 6;
+	snprintf( &(outStr[idx]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH+(5*numServos) ); idx += 6;
 
 	//fill data
 	snprintf( &(outStr[idx]), 3+1,  "% 3d", alarmArmed); idx += 3;
@@ -37,9 +37,6 @@ uint16_t fillStatusString(char * outStr){
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAX); idx += 5; //alarmInit_magSample.X);
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAY); idx += 5; //alarmInit_magSample.Y);
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAZ); idx += 5; //alarmInit_magSample.Z);
-
-	snprintf( &(outStr[idx]), 5+1,  "% 5d",servo1Angle); idx += 5;
-	snprintf( &(outStr[idx]), 5+1,  "% 5d",servo2Angle); idx += 5;
 
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", staRssi); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5d", lastTemperature); idx += 5;
@@ -51,16 +48,19 @@ uint16_t fillStatusString(char * outStr){
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmDiff); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmTriggered); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", alarmOutput); idx += 5;
-  snprintf( &(outStr[idx]), 5+1,  "% 5i", activelyCommanded); idx += 5;
+	snprintf( &(outStr[idx]), 5+1,  "% 5i", activelyCommanded); idx += 5;
+
+  for( uint8_t i = 0; i < numServos; ++i )
+    snprintf( &(outStr[idx]), 5+1,  "% 5d",servoAngles[i]); idx += 5;
 	//memset() //snprintf will set a \0 at end so don't need to memset
 	return idx;
 }
 
 void ObfsucatePass(char *str, uint8_t len){
-  for(uint16_t i = 0; i < len; ++i){
-    if(str[i] != '\0')
-      str[i] = '*';
-  }
+	for(uint16_t i = 0; i < len; ++i){
+		if(str[i] != '\0')
+			str[i] = '*';
+	}
 }
 
 #define SETTINGS_RESPONSE_LENGTH 20+((NETWORK_NAME_LEN*2)*MAX_STORED_NETWORKS)+(MAX_STORED_NETWORKS*NETWORK_NAME_LEN)
@@ -80,19 +80,23 @@ uint16_t fillSettingsString( char * outputStr ){
 	esp_wifi_get_max_tx_power(&txPower);
 	snprintf( &(outputStr[oIdx]), 5, "%i\n", txPower); oIdx += 5;
 
+  //oIdx = 37 (11+6+5+5+5)
+
 	Serial.println("fSS storedVals");
 	preferences.begin("storedVals", true);
 
-    char networkInfo[NETWORK_NAME_LEN];
+		char networkInfo[NETWORK_NAME_LEN];
 
-    //server urls
-		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
-      memset( networkInfo, '\0', NETWORK_NAME_LEN );
+		//server urls
+		for( uint8_t i = 0; i < MAX_NUM_SVRS; ++i ){
+			memset( networkInfo, '\0', NETWORK_NAME_LEN );
 			preferences.getBytes("svrUrl"+i, networkInfo, NETWORK_NAME_LEN);
 			memcpy( &(outputStr[oIdx]), networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 		}
 
-    //networks and passwords
+    //oIdx = 357 oIdx (37) += ( MAX_NUM_SVRS (10) * NETWORK_NAME_LEN (32) ) (320)
+
+		//networks and passwords
 		//Serial.println("svrUrl");
 		uint16_t storedNetworksSettingsStrStart = oIdx;
 		for( uint8_t i = 0; i < MAX_STORED_NETWORKS; ++i ){
@@ -257,50 +261,50 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 
 	//servo position control
 	else if(!strncmp(cmd, "up", 2)) {
-		if(servo1Angle <= 170) {
-			servo1Angle += 10;
-			servo1.write(servo1Angle);
+		if(servoAngles[0] <= 170) {
+			servoAngles[0] += 10;
+			servos[0].write(servoAngles[0]);
 		}
-		Serial.println(servo1Angle);
+		Serial.println(servoAngles[0]);
 		Serial.println("Up");
 		sucessfulyHandledCmd = 5;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "left", 4)) {
-		if(servo2Angle <= 170) {
-			servo2Angle += 10;
-			servo2.write(servo2Angle);
+		if(servoAngles[1] <= 170) {
+			servoAngles[1] += 10;
+			servos[1].write(servoAngles[1]);
 		}
-		Serial.println(servo2Angle);
+		Serial.println(servoAngles[1]);
 		Serial.println("Left");
 		sucessfulyHandledCmd = 6;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "right", 5)) {
-		if(servo2Angle >= 10) {
-			servo2Angle -= 10;
-			servo2.write(servo2Angle);
+		if(servoAngles[1] >= 10) {
+			servoAngles[1] -= 10;
+			servos[1].write(servoAngles[1]);
 		}
-		Serial.println(servo2Angle);
+		Serial.println(servoAngles[1]);
 		Serial.println("Right");
 		sucessfulyHandledCmd = 7;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "down", 4)) {
-		if(servo1Angle >= 10) {
-			servo1Angle -= 10;
-			servo1.write(servo1Angle);
+		if(servoAngles[0] >= 10) {
+			servoAngles[0] -= 10;
+			servos[0].write(servoAngles[0]);
 		}
-		Serial.println(servo1Angle);
+		Serial.println(servoAngles[0]);
 		Serial.println("Down");
 		sucessfulyHandledCmd = 8;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "center", 6)) {
-		servo1Angle = 90;
-		servo2Angle = 90;
-		servo1.write(servo1Angle);
-		servo2.write(servo2Angle);
+		servoAngles[0] = 90;
+		servoAngles[1] = 90;
+		servos[0].write(servoAngles[0]);
+		servos[0].write(servoAngles[1]);
 		
 		//Serial.print(servo1Angle);
 		//Serial.println(servo2Angle);
@@ -356,12 +360,14 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "svrCert", 7)){
 		uint8_t certNum = cmd[7] - '0';
-    uint8_t certPartIdx = cmd[9] - '0';
+		uint8_t certPartIdx = cmd[9] - '0';
 		preferences.begin("storedVals", false);
 			uint16_t storLen = min( valLen, (uint16_t)SVR_CERT_PART_LENGTH );
 			snprintf( storedPrefKey, 10+1,"svrCert%i_%i", certNum,certPartIdx );
 			preferences.putBytes( storedPrefKey, value, storLen );
-			Serial.print("storing svrCert "); Serial.print(certNum); Serial.print("_"); Serial.print(certPartIdx); Serial.print(" len ");Serial.println(storLen);
+			Serial.print("storing svrCert "); Serial.print(certNum); 
+      Serial.print("_"); Serial.print(certPartIdx); 
+      Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
 		sucessfulyHandledCmd = 17;
 	}
@@ -404,6 +410,36 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		sucessfulyHandledCmd = 22;
 	}
 
+	else if(!strncmp(cmd, "cfgNumServo", 10)){
+		
+			uint8_t readNumServos = cmd[6] - '0';
+			if( readNumServos < MAX_NUM_SERVOS && readNumServos >= 0){
+				numServos = readNumServos;
+				preferences.begin("storedVals", false);
+				preferences.putUChar("numServos", numServos );
+				Serial.print(" storing numServos");Serial.println(numServos);
+				preferences.end();
+			}
+
+		sucessfulyHandledCmd = 23;
+	}
+	else if(!strncmp(cmd, "cfgHasLght", 10)){
+		preferences.begin("storedVals", false);
+			bool hasLight = cmd[11] == 1;
+			preferences.putBool("hasLight", hasLight );
+			Serial.print(" storing hasLight");Serial.println(hasLight);
+		preferences.end();
+		sucessfulyHandledCmd = 24;
+	}
+	else if(!strncmp(cmd, "cfgHasAlrm", 10)){
+		preferences.begin("storedVals", false);
+			bool hasAlarm = cmd[11] == 1;
+			preferences.putBool("hasLight", hasAlarm );
+			Serial.print(" storing hasAlarm");Serial.println(hasAlarm);
+		preferences.end();
+		sucessfulyHandledCmd = 25;
+	}
+
 	return sucessfulyHandledCmd;
 }
 
@@ -412,14 +448,14 @@ void readSvrCert(uint8_t num, uint16_t & length, char * svrCert ){
 	Serial.print("readSvrCert len ");
 	preferences.begin("storedVals", true);
 		length = preferences.getInt( "svrCertLen"+num );
-		Serial.println( length );
+		Serial.print( length );
 		uint16_t partIdx;
 		uint16_t partLen;
 		for( uint8_t i = 0; i < NUM_SVR_CERT_PARTS; ++i ){
 			partIdx = i*SVR_CERT_PART_LENGTH;
 			uint16_t remLen = length - partIdx;
 			partLen = min( (uint16_t)SVR_CERT_PART_LENGTH, remLen);
-			Serial.print( "partIdx " );Serial.print(i);Serial.print(" ");Serial.print( partIdx ); 
+			Serial.print( " partIdx " );Serial.print(i);Serial.print(" ");Serial.print( partIdx );
 			Serial.print( " remLen " ); Serial.print(remLen); Serial.print( " partLen " );Serial.println( partLen );
 			if( partLen <=0 )
 				break;
@@ -428,6 +464,7 @@ void readSvrCert(uint8_t num, uint16_t & length, char * svrCert ){
 		}
 		svrCert[length] = '\0';
 	preferences.end();
+  //printPayload( 0, 50, svrCert );
 }
 
 #include "webSocketClient.h"
