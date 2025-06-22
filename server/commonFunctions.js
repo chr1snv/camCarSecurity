@@ -157,7 +157,9 @@ function sendCmds( datas, callback ) {
 			dat = ''
 			datLen = 0
 		}
-		else if( datLen == undefined ){
+		if( datLen == undefined ){
+			if( dat.length == undefined )
+				dat = String( dat );
 			datLen = dat.length;
 		}
 

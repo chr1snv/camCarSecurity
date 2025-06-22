@@ -44,7 +44,7 @@ def get_ssl_context(certfile, keyfile):
 	context.load_cert_chain(certfile, keyfile)
 	context.set_ciphers("@SECLEVEL=1:ALL")
 	return context
-	
+
 
 async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
 	if( pktNum >= 256 ):
@@ -68,39 +68,41 @@ def curMillis():
 class Device:
 
 	def __init__(self):
-	
-		self.devId = 1
+
+		self.devId = -1
+
+		self.controlingCliId = -1
 
 		self.description = 'Device Name'
 
 		self.wSock = None
-		
+
 		self.sendPktIdx = 0
 
 		self.lastImage = b''
 		self.lastImageLength = 0
 		self.lastImageTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
-		
+
 		self.postSettings = b''
 		self.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 		
 		self.postStatus = b''
 		self.lastStatusTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
-		
+
 		self.alarmArmed        = ""
 		self.magAX             = ""
 		self.magAY             = ""
 		self.magAZ             = ""
-		
+
 		self.servo1Angle       = ""
 		self.servo2Angle       = ""
-		
+
 		self.staRssi           = ""
 		self.lastTemperature   = ""
 		self.magX              = ""
 		self.magY              = ""
 		self.magZ              = ""
-		
+
 		self.magHeading        = ""
 		self.magAlarmDiff      = ""
 		self.magAlarmTriggered = ""
@@ -158,7 +160,7 @@ class Device:
 		self.lastSettings = datStr
 		self.lastSettingsLen = datStrLen
 		self.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
-		
+
 	def fillImage(self, datStr, datStrLen):
 		#print( "last image len %i datStrLen %i " % (len(datStr), datStrLen )  )
 		self.lastImage = datStr
@@ -167,24 +169,26 @@ class Device:
 
 class Client:
 	def __init__(self):
+		self.cliId = -1 #the id of the users browser session
+		self.devId = -1 #the selected device to control
 		self.sendPktIdx = 0
 		self.wSock = None
 		self.login = None
 		self.addr = None
 		self.loginAttempts = 0
 		self.nextAllowedLoginAttemptTime = curMillis()
-	
+
 	def getAndIncrementNextLoginAttemptTime(self, time):
 		ret = self.nextAllowedLoginAttemptTime
 		if time > self.nextAllowedLoginAttemptTime:
 			self.nextAllowedLoginAttemptTime = self.nextAllowedLoginAttemptTime + pow(10,self.loginAttempts)
 			self.loginAttempts += 1
 		return ret
-	
+
 	def resetLoginTimeout(self):
 		self.loginAttempts = 0
 		self.nextAllowedLoginAttemptTime = curMillis() + 1000
-	
+
 	async def send( self, fromDevId, datInfoArr, sendWithoutAuth=False): #, auth ):
 		okToSend = False
 		if self.wSock != None:
@@ -197,7 +201,7 @@ class Client:
 				else:
 					await logoutClient(client)
 					self.login = None #not sure if necessary because this client instance would then be garbage collected
-		
+
 		if okToSend:
 			if not sendWithoutAuth:
 				remPkts = str(self.login[LOGIN_REMAINING_RESPONSES_IDX]).encode('utf-8')
@@ -205,10 +209,20 @@ class Client:
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
 			if self.login != None:
 				self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
-	
+
 svrDevId = 1
 devices = {}
-client = Client()
+clients = {}
+lastAllocatedClientId = -1
+
+def cleanupNotRecentlyConnectedDevicesAndClients():
+	tenSecAgo = int(datetime.now(tz=timezone.utc).timestamp() * 1000) - (10 * 1000)
+	for dev in list(devices.keys()):
+		if devices[dev].lastStatusTime  < tenSecAgo:
+			del devices[dev]
+	for cli in list(clients.keys()):
+		if clients[cli].lastStatusTime < tenSecAgo:
+			del clients[cli]
 
 def GetOrAllocateDevice( devId ):
 	if not (devId in devices.keys() ):
@@ -216,6 +230,13 @@ def GetOrAllocateDevice( devId ):
 		dev.devId = devId
 		devices[devId] = dev
 	return devices[devId]
+
+def GetOrAllocateClient( cliId ):
+	if not (cliId in clients.keys() ):
+		cli = Client()
+		cli.cliId = cliId
+		clients[cliId] = cli
+	return clients[cliId]
 
 validClientLogins = {}
 activeClientLogins = {}
@@ -355,13 +376,13 @@ async def websocketHandler(websocket):
 		mIdx = 0
 		pktIdx = atoir_n(msg[0:3],3)
 		mIdx += 3
-		devId  = atoir_n(msg[mIdx : mIdx+4  ], 4)
+		devOrCliId  = atoir_n(msg[mIdx : mIdx+4  ], 4)
 		mIdx += 4
 		numCmd = msg[mIdx] - b'0'[0] #ascii character difference to convert digit to int
 		mIdx += 1
 		cmdIdx = 0
 		fromDorC = msg[mIdx]
-		#print( "pktIdx %i devId %s numCmd %i fromType %c" % (pktIdx, devId, numCmd, fromDorC) )
+		#print( "pktIdx %i devOrCliId %s numCmd %i fromType %c" % (pktIdx, devOrCliId, numCmd, fromDorC) )
 		mIdx += 1
 		
 		pktLoginUname = ''
@@ -374,8 +395,11 @@ async def websocketHandler(websocket):
 			mIdx += 6
 			datStr = msg[mIdx:mIdx+datLen]
 			if fromDorC == ord('d'): #data from device
-				device = GetOrAllocateDevice(devId)
-				print( "from %s devId: %i datType: %s datLen: %i" % (chr(fromDorC), devId, datType, datLen) )
+				device = GetOrAllocateDevice(devOrCliId)
+				client = None
+				if device.controlingCliId >= 0 and device.controlingCliId in clients.keys():
+					client = clients[device.controlingCliId]
+				print( "from %s devId: %i datType: %s datLen: %i controllingCliId %i" % (chr(fromDorC), devOrCliId, datType, datLen, device.controlingCliId) )
 				device.wSock = websocket #for sending data to device
 				if datType.startswith(b"Stat"):
 					device.fillValues( datStr ) #read the status data in from device
@@ -384,19 +408,24 @@ async def websocketHandler(websocket):
 					#print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
 					await device.send( svrDevId, cmdDatArr )
 					lastStatTimeStr = str(device.lastStatusTime).encode('utf-8')
-					await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastStatTimeStr), lastStatTimeStr)] )
+					if client:
+						await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastStatTimeStr), lastStatTimeStr)] )
 				if datType.startswith(b"Set"):
 					device.fillSettings( datStr, datLen )
 					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
-					await client.send( device.devId, [('Set', device.lastSettingsLen, device.lastSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+					if client:
+						await client.send( device.devId, [('Set', device.lastSettingsLen, device.lastSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 				if datType.startswith(b"Img"):
 					device.fillImage( datStr, datLen )
 					lastSetTimeStr = str(device.lastImageTime).encode('utf-8')
 					#print('sending image to browser')
-					await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+					if client:
+						await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 				if datType.startswith(b"cmdResults"):
-					await client.send( device.devId, [ ('cmdResults', datLen, datStr) ] )
+					if client:
+						await client.send( device.devId, [ ('cmdResults', datLen, datStr) ] )
 			else: #request or command from client (browser http page)
+				client = GetOrAllocateClient( devOrCliId )
 				client.wSock = websocket #for sending data to browser client
 				client.addr = websocket.remote_address
 				if datType.startswith(b'auth'):
@@ -443,6 +472,11 @@ async def websocketHandler(websocket):
 						await client.send( svrDevId, [('authErr', 0, b'')], True )
 				elif pktAuth != '': #a valid pktAuth has been recieved for the data packet
 					#the following requests are allowed
+					device = None
+					if client.devId >= 0 and client.devId in devices.keys():
+						device = devices[client.devId]
+					else:
+						print( "dev %i not in devices" % client.devId )
 					if datType.startswith(b'getKey'): #generate a get key make it active and return it
 						getKey = getRandomASCIIByteArrWithLength(16).decode('utf-8').encode('utf-8');
 						activeGetKeys[getKey] = client
@@ -473,7 +507,7 @@ async def websocketHandler(websocket):
 			mIdx += datLen
 			cmdIdx += 1
 			#print( " mIdx %i" % mIdx )
-			
+
 
 
 class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
@@ -498,8 +532,8 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		self.finish() #https://stackoverflow.com/questions/6594418/simplehttprequesthandler-close-connection-before-returning-from-do-post-method
 
 	def do_GET(self):
-		global cmds
-		
+		global cmds, lastAllocatedClientId
+
 		try:
 			#print("get path " + self.path )
 			parts = re.split(r"[/?&=]", self.path)
@@ -507,7 +541,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			getKeyValid = False
 			if len(parts) > 2:
 				getKeyValid = GetKeyIsActive( parts[2].encode('utf-8') )
-			
+
 			if getKeyValid: #then allowed to request the following
 				if parts[1] == 'action':
 					self.send_response(200)
@@ -545,6 +579,13 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				
 				elif parts[1] == "camControl.html": #device control page
 					#self.path has /index.htm
+					devId = int(parts[4])
+					cliId = int(parts[6])
+					client = GetOrAllocateClient( cliId )
+					client.devId = devId
+					print( " camControl devId : %i cliId : %i  cli.devId : %i" % (devId, cliId, clients[cliId].devId) )
+					dev = GetOrAllocateDevice( devId )
+					dev.controlingCliId = cliId
 					self.replyWithFile( parts[1] ) 
 					return
 
@@ -569,9 +610,12 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					output.write("<td><h4 style=\"margin-bottom:0px;\">Packets until auto-logout</h4></td><td><p id=\"remainingPackets\">?</p></td>")
 					output.write("</tr></table>")
 					output.write("<h1>Avaliable devices</h1>")
+					lastAllocatedClientId += 1
+					cliIdStr = str( lastAllocatedClientId )
+					output.write("<div id=\"cliId\" style=\"display:none;\">" + cliIdStr + "</div>")
 					for devId, dev in devices.items():
 						devIdStr = str(dev.devId)
-						output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\', [[\'devId\', ' + devIdStr + ']])">' + devIdStr + " : " + dev.description + '</button>')
+						output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\', [[\'devId\', ' + devIdStr + '],[\'cliId\', ' + cliIdStr + ']])">' + devIdStr + " : " + dev.description + '</button>')
 					output.write("</body>")
 					output.write("</html>")
 
@@ -582,7 +626,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 
 			elif parts[1].endswith("commonFunctions.js") or ( parts[1].endswith(".js") and getKeyValid ):
 				self.replyWithFile(self.path)
-			
+
 			else: # the login page
 				self.replyWithFile( "login.html" )
 
@@ -629,9 +673,9 @@ async def startWebsocketServer():
 	print("start websocket server init")
 	port = 9999
 	ssl_context = get_ssl_context(certfile, keyfile)
-	
+
 	stop = asyncio.Future()
-	
+
 	print( "serving websocket at %s port %i" % (svrIp, port) )
 	#https://stackoverflow.com/questions/67810506/websockets-exceptions-connectionclosederror-code-1011-unexpected-error-no
 	async with serve(websocketHandler, svrIp, port, ping_interval=None, ssl=ssl_context) as ws:
@@ -661,14 +705,14 @@ def loopCheckIpHasChanged():
 		if currentIp != svrIp:
 			print('ip has changed, need to rebind servers to new interface addresses')
 			svrIp = currentIp
-			
+
 			if backend_thread != None:
 				backend_thread.stop()
-			
+
 			server_address = (svrIp, 5000)
 			print( "starting httpAsyncServer at " + server_address[0] + " port " + str(server_address[1]) )
 			backend_thread = start_http_server_in_new_thread(server_address, HTTPAsyncHandler)
-			
+
 			if stop != 0: #https://stackoverflow.com/questions/60113143/how-to-properly-use-asyncio-run-coroutine-threadsafe-function
 				stop.get_loop().call_soon_threadsafe(stop.set_result, 1)
 				#webSocketSvrThread.stop()#stop.set_result(1);
@@ -676,9 +720,9 @@ def loopCheckIpHasChanged():
 			asyncio.set_event_loop(loop)
 			loop = asyncio.get_event_loop()
 			print('before run coroutine startWebsocketServer')
-			
+
 			webSocketSvrThread = startWebsocketServer_in_new_thread()
-			
+
 		time.sleep(1)
 
 #run the ip change checking loop (main program loop)
