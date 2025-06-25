@@ -541,7 +541,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		f = open(os.getcwd() + os.path.sep + filePath)
 		self.send_response(200)
 		if filePath.endswith('.js'):
-			self.send_header('Content-type','script/js')
+			self.send_header('Content-type','application/javascript')
 		else:
 			self.send_header('Content-type','text/html')
 		self.end_headers()

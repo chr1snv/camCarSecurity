@@ -46,6 +46,20 @@ uint8_t numServos = 0;
 #define MAX_NUM_SERVOS 6
 Servo servos[MAX_NUM_SERVOS];
 int servoAngles[MAX_NUM_SERVOS];
+int defaultServoAngles[MAX_NUM_SERVOS] = {90,90,90, 90,90,90};
+
+//init servos //to be used after number of servos changes
+void initServos(){
+  for(uint8_t sNum = 0; sNum < MAX_NUM_SERVOS; ++sNum){
+    servos[sNum].detach();
+  }
+  for(uint8_t sNum = 0; sNum < numServos; ++sNum){
+	  servos[sNum].setPeriodHertz(50);    // standard 50 hz servo
+	  servos[sNum].attach( ServoOutputPins[sNum] ); //defaults to 500, 2500 microseconds //, 1000, 2000);
+    servoAngles[sNum] = defaultServoAngles[sNum];
+	  servos[sNum].write(servoAngles[sNum]); //start at default angle
+  }
+}
 
 #define ALARM_OUTPUT_PIN 2 //pull down strapping pin
 
@@ -96,15 +110,10 @@ void setup() {
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 
   preferences.begin("storedVals", true);
-  preferences.getUChar( "numServos", numServos);
+  numServos = preferences.getUChar( "numServos" );
   preferences.end();
 
-	//init servos
-  for(uint8_t sNum = 0; sNum < numServos; ++sNum){
-	  servos[sNum].setPeriodHertz(50);    // standard 50 hz servo
-	  servos[sNum].attach( ServoOutputPins[sNum] ); //defaults to 500, 2500 microseconds //, 1000, 2000);
-	  servos[sNum].write(servoAngles[sNum]); //start at default angle
-  }
+	initServos();
 
 	//init lights
 	pinMode(LightLEDPin, OUTPUT);

@@ -21,7 +21,7 @@ static esp_err_t index_handler(httpd_req_t *req){
 	return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
 }
 
-#define STATUS_RESPONSE_LENGTH 85+(5*MAX_NUM_SERVOS) //3+2+5+5+5+5+5+5+5+5+5+5+10+5+5+5
+#define MIN_STATUS_RESPONSE_LENGTH 77 //(3+2+5+5+5){20} +(5+5+5+5+5){25} +(10+5+5+5+5){30} + 3
 uint16_t fillStatusString(char * outStr){
 	//+1's to snprintf lengths because of \0 null terminator always appended
 
@@ -29,7 +29,7 @@ uint16_t fillStatusString(char * outStr){
 
 	//fill header
 	snprintf( &(outStr[idx]), 11+1, "Stat" ); idx += 11;
-	snprintf( &(outStr[idx]), 6+1, "% 6d", STATUS_RESPONSE_LENGTH+(5*numServos) ); idx += 6;
+	snprintf( &(outStr[idx]), 6+1, "% 6d", MIN_STATUS_RESPONSE_LENGTH+(5*numServos) ); idx += 6;
 
 	//fill data
 	snprintf( &(outStr[idx]), 3+1,  "% 3d", alarmArmed); idx += 3;
@@ -49,6 +49,8 @@ uint16_t fillStatusString(char * outStr){
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmTriggered); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", alarmOutput); idx += 5;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", activelyCommanded); idx += 5;
+
+  snprintf( &(outStr[idx]), 3+1,  "% 3i", numServos); idx += 3;
 
   for( uint8_t i = 0; i < numServos; ++i )
     snprintf( &(outStr[idx]), 5+1,  "% 5d",servoAngles[i]); idx += 5;
@@ -301,10 +303,11 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "center", 6)) {
-		servoAngles[0] = 90;
-		servoAngles[1] = 90;
-		servos[0].write(servoAngles[0]);
-		servos[0].write(servoAngles[1]);
+    //for all active servos
+    for(uint8_t sNum = 0; sNum < numServos; ++sNum){
+      servoAngles[sNum] = defaultServoAngles[sNum];
+      servos[sNum].write(servoAngles[sNum]); //start at default angle
+    }
 		
 		//Serial.print(servo1Angle);
 		//Serial.println(servo2Angle);
@@ -412,16 +415,18 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 
 	else if(!strncmp(cmd, "cfgNumServo", 10)){
 		
-			uint8_t readNumServos = cmd[6] - '0';
-			if( readNumServos < MAX_NUM_SERVOS && readNumServos >= 0){
+			uint8_t readNumServos = atoir_n(value, valLen);
+      Serial.print("readNumServos "); Serial.println(readNumServos);
+			if( readNumServos < MAX_NUM_SERVOS && readNumServos >= 0 ){
 				numServos = readNumServos;
 				preferences.begin("storedVals", false);
 				preferences.putUChar("numServos", numServos );
 				Serial.print(" storing numServos");Serial.println(numServos);
 				preferences.end();
+        initServos();
+        sucessfulyHandledCmd = 23;
 			}
 
-		sucessfulyHandledCmd = 23;
 	}
 	else if(!strncmp(cmd, "cfgHasLght", 10)){
 		preferences.begin("storedVals", false);
