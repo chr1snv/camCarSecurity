@@ -138,11 +138,13 @@ function sendWebsocketServerMessage(signalingMessage, nonRateLimitedMessage=fals
 
 }
 
+let thisCliId = -1;
+
 let pktIdx = 0;
 function sendCmds( datas, callback ) {
 
 	let pktIdxStr = pktIdx.toString().padStart(3);
-	let devIdStr = "0".padStart(4);
+	let devIdStr = (thisCliId).toString().padStart(4);
 	let numDatAndDevType = datas.length + "c";
 
 	let sendStr = pktIdxStr + devIdStr + numDatAndDevType;

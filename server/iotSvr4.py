@@ -201,6 +201,10 @@ class Client:
 				else:
 					await logoutClient(client)
 					self.login = None #not sure if necessary because this client instance would then be garbage collected
+			else:
+				print("no login for cli not okToSend")
+		else:
+			print( "cant send to cliId %i without wSock" % self.cliId )
 
 		if okToSend:
 			if not sendWithoutAuth:
@@ -219,9 +223,11 @@ def cleanupNotRecentlyConnectedDevicesAndClients():
 	tenSecAgo = int(datetime.now(tz=timezone.utc).timestamp() * 1000) - (10 * 1000)
 	for dev in list(devices.keys()):
 		if devices[dev].lastStatusTime  < tenSecAgo:
+			print( "cleaning up device" )
 			del devices[dev]
 	for cli in list(clients.keys()):
 		if clients[cli].lastStatusTime < tenSecAgo:
+			print( "cleaning up client" )
 			del clients[cli]
 
 def GetOrAllocateDevice( devId ):
@@ -239,6 +245,7 @@ def GetOrAllocateClient( cliId ):
 	return clients[cliId]
 
 validClientLogins = {}
+#username(0), password(1), loginAttempts(2), loggedinAuthKey(3), remaining authorized responses(4), client instance
 activeClientLogins = {}
 activeGetKeys = {}
 
@@ -399,7 +406,10 @@ async def websocketHandler(websocket):
 				client = None
 				if device.controlingCliId >= 0 and device.controlingCliId in clients.keys():
 					client = clients[device.controlingCliId]
-				print( "from %s devId: %i datType: %s datLen: %i controllingCliId %i" % (chr(fromDorC), devOrCliId, datType, datLen, device.controlingCliId) )
+				cliIdNum = -2
+				if client:
+					cliIdNum = client.cliId
+				print( "from %s devId: %i datType: %s datLen: %i controllingCliId %i client %i" % (chr(fromDorC), devOrCliId, datType, datLen, device.controlingCliId, cliIdNum) )
 				device.wSock = websocket #for sending data to device
 				if datType.startswith(b"Stat"):
 					device.fillValues( datStr ) #read the status data in from device
@@ -410,17 +420,23 @@ async def websocketHandler(websocket):
 					lastStatTimeStr = str(device.lastStatusTime).encode('utf-8')
 					if client:
 						await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastStatTimeStr), lastStatTimeStr)] )
+					else:
+						print("no cli to forward stat to")
 				if datType.startswith(b"Set"):
 					device.fillSettings( datStr, datLen )
 					lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
 					if client:
 						await client.send( device.devId, [('Set', device.lastSettingsLen, device.lastSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+					else:
+						print("no cli to forward set to")
 				if datType.startswith(b"Img"):
 					device.fillImage( datStr, datLen )
 					lastSetTimeStr = str(device.lastImageTime).encode('utf-8')
 					#print('sending image to browser')
 					if client:
 						await client.send( device.devId, [('Img', device.lastImageLength, device.lastImage), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+					else:
+						print("no cli to forward image to")
 				if datType.startswith(b"cmdResults"):
 					if client:
 						await client.send( device.devId, [ ('cmdResults', datLen, datStr) ] )
@@ -458,12 +474,12 @@ async def websocketHandler(websocket):
 							storedLogin[LOGIN_ATTEMPTS_IDX] = 0
 							storedLogin[LOGIN_AUTHKEY_IDX] = authKey
 							storedLogin[LOGIN_REMAINING_RESPONSES_IDX] = NUM_PKTS_A_LOGIN_AUTHORIZES
-							validClientLogins[pendingLoginUname] = storedLogin
+							#validClientLogins[pendingLoginUname] = storedLogin
 							client.login = storedLogin
 							print("setting authKey %s as active" % authKey)
 							activeClientLogins[authKey] = storedLogin
 							await client.send( svrDevId, [('auth', len(authKey), authKey)] )
-							print('sent auth to client')
+							print('sent auth to client and set login for cliId %i' % client.cliId)
 						else:
 							print("password doesn't match")
 							await client.send( svrDevId, [('authErr', 0, b'')], True )
@@ -472,38 +488,40 @@ async def websocketHandler(websocket):
 						await client.send( svrDevId, [('authErr', 0, b'')], True )
 				elif pktAuth != '': #a valid pktAuth has been recieved for the data packet
 					#the following requests are allowed
-					device = None
-					if client.devId >= 0 and client.devId in devices.keys():
-						device = devices[client.devId]
-					else:
-						print( "dev %i not in devices" % client.devId )
+					if client.login == None:
+						client.login = activeClientLogins[pktAuth]
 					if datType.startswith(b'getKey'): #generate a get key make it active and return it
 						getKey = getRandomASCIIByteArrWithLength(16).decode('utf-8').encode('utf-8');
 						activeGetKeys[getKey] = client
 						await client.send(svrDevId, [('getKey', len(getKey), getKey)])
-					if datType.startswith(b'status'):
-						#print( 'sending status to browser' + str(len(device.postStatus)) )
-						timeStr = str(device.lastStatusTime).encode('utf-8')
-						await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(timeStr), timeStr)] )
-					elif datType.startswith(b'settings'):
-						#setLen = str(len(device.postSettings)).encode('utf-8')
-						lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
-						print( 'req settings from dev' )
-						await device.send( svrDevId, [('getSettings', 0, b'')] )
-						print( 'sending last settings to browser' )
-						await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
-					elif datType.startswith(b'image'):
-						#print( 'sending img to browser' )
-						await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)]  )
-					elif datType.startswith(b'logout'):
+					if datType.startswith(b'logout'):
 						key = datStr
 						if key == client.login[LOGIN_AUTHKEY_IDX]: #only allow user to logout themselves
 							await logoutClient(client)
+					device = None
+					if client.devId >= 0 and client.devId in devices.keys():
+						device = devices[client.devId]
+						if datType.startswith(b'status'):
+							#print( 'sending status to browser' + str(len(device.postStatus)) )
+							timeStr = str(device.lastStatusTime).encode('utf-8')
+							await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(timeStr), timeStr)] )
+						elif datType.startswith(b'settings'):
+							#setLen = str(len(device.postSettings)).encode('utf-8')
+							lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
+							print( 'req settings from dev' )
+							await device.send( svrDevId, [('getSettings', 0, b'')] )
+							print( 'sending last settings to browser' )
+							await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
+						elif datType.startswith(b'image'):
+							#print( 'sending img to browser' )
+							await client.send( device.devId, [('Img', len(device.lastImage), device.lastImage)]  )
+						else:
+							cmd = datType.strip()
+							val = datStr
+							print( 'action: ' + str(cmd) + ':' + str(val) + "|")
+							cmds.append( [cmd, val] )
 					else:
-						cmd = datType.strip()
-						val = datStr
-						print( 'action: ' + str(cmd) + ':' + str(val) + "|")
-						cmds.append( [cmd, val] )
+						print( "dev %i not in devices" % client.devId )
 			mIdx += datLen
 			cmdIdx += 1
 			#print( " mIdx %i" % mIdx )
@@ -519,7 +537,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		except Exception as e:
 			None
 
-	def replyWithFile(self, filePath):
+	def replyWithStartFile(self, filePath):
 		f = open(os.getcwd() + os.path.sep + filePath)
 		self.send_response(200)
 		if filePath.endswith('.js'):
@@ -527,6 +545,11 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 		else:
 			self.send_header('Content-type','text/html')
 		self.end_headers()
+		self.wfile.write(f.read().encode('utf-8'))
+		f.close()
+
+	def replyWithEndFile(self, filePath):
+		f = open(os.getcwd() + os.path.sep + filePath)
 		self.wfile.write(f.read().encode('utf-8'))
 		f.close()
 		self.finish() #https://stackoverflow.com/questions/6594418/simplehttprequesthandler-close-connection-before-returning-from-do-post-method
@@ -551,6 +574,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					print( 'action: ' + cmd)
 					val = parts[5]
 					cmds.append( [cmd, val] )
+					self.finish()
 					return
 				elif parts[1] == 'status':
 					#print('return last device status info')
@@ -560,6 +584,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					self.send_header('Content-Length', len(statusStr))
 					self.end_headers()
 					self.wfile.write(statusStr)
+					self.finish()
 					return
 				elif parts[1] == 'settings':
 					#print('get settings')
@@ -568,6 +593,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					settingsStr = device.postSettings.encode('utf-8')
 					self.send_header('Content-Length', len(settingsStr))
 					self.end_headers()
+					self.finish()
 					return
 				elif parts[1] == 'image':
 					self.send_response(200)
@@ -575,6 +601,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					self.send_header('Content-Length', device.lastImageLength)
 					self.end_headers()
 					self.wfile.write(device.lastImage)
+					self.finish()
 					return
 				
 				elif parts[1] == "camControl.html": #device control page
@@ -583,10 +610,16 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					cliId = int(parts[6])
 					client = GetOrAllocateClient( cliId )
 					client.devId = devId
-					print( " camControl devId : %i cliId : %i  cli.devId : %i" % (devId, cliId, clients[cliId].devId) )
 					dev = GetOrAllocateDevice( devId )
 					dev.controlingCliId = cliId
-					self.replyWithFile( parts[1] ) 
+					self.replyWithStartFile( "camControlBegin.html" )
+					print("writing cliId %i" % (cliId))
+					self.wfile.write(("<div id=\"cliId\" style=\"display:none;\">" + str(cliId) + "</div>").encode('utf-8'))
+					print("writing devId %i" % (devId))
+					self.wfile.write(("<h2 id=\"devId\">" + str(devId) + "</h2>").encode('utf-8'))
+					print("finishing writing camControl.html")
+					self.replyWithEndFile( "camControlEnd.html" )
+					print( " camControl devId : %i cliId : %i  cli.devId : %i" % (clients[cliId].devId, clients[cliId].cliId, clients[cliId].devId) )
 					return
 
 				elif parts[1] == "devSelection.html": #device control page
@@ -625,10 +658,12 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					return
 
 			elif parts[1].endswith("commonFunctions.js") or ( parts[1].endswith(".js") and getKeyValid ):
-				self.replyWithFile(self.path)
+				self.replyWithStartFile(self.path)
+				self.finish()
 
 			else: # the login page
-				self.replyWithFile( "login.html" )
+				self.replyWithStartFile( "login.html" )
+				self.finish()
 
 		except Exception as e:#@IOError:
 			print(e)
