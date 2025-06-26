@@ -34,6 +34,8 @@ import numpy as np
 
 from netifaces import interfaces, ifaddresses, AF_INET
 
+import base64
+
 #import json
 
 certfile = "cert.pem"
@@ -538,11 +540,33 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			None
 
 	def replyWithStartFile(self, filePath):
-		f = open(os.getcwd() + os.path.sep + filePath)
+		filePathStr = os.getcwd() + os.path.sep + filePath
 		self.send_response(200)
+		print( filePath )
+		if filePath.endswith('.jpg'):
+			f = open(filePathStr, 'rb')
+			print("sending jpg")
+			self.send_header('Content-type','image/jpeg')
+			self.end_headers()
+			print("reading jpg")
+			jpgFile = f.read()
+			print("closing jpg file")
+			f.close()
+			#jpgFile[0] = 0x0d
+			#jpgFile[1] = 0x0a
+			#jpgFile[2] = 0x0d
+			#jpgFile[3] = 0x0a
+			print("first bytes of jpg file %i %i %i %i" % (jpgFile[0], jpgFile[1], jpgFile[2], jpgFile[3]))
+			self.wfile.write(jpgFile)
+			f.close()
+			return
+		
+		f = open(filePathStr)
 		if filePath.endswith('.js'):
+			print("sending js")
 			self.send_header('Content-type','application/javascript')
 		else:
+			print("sending text")
 			self.send_header('Content-type','text/html')
 		self.end_headers()
 		self.wfile.write(f.read().encode('utf-8'))
@@ -659,6 +683,10 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 
 			elif parts[1].endswith("commonFunctions.js") or ( parts[1].endswith(".js") and getKeyValid ):
 				self.replyWithStartFile(self.path)
+				self.finish()
+				
+			elif parts[1].endswith(".jpg"):
+				self.replyWithStartFile(parts[1])
 				self.finish()
 
 			else: # the login page
