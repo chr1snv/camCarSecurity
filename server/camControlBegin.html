@@ -1,0 +1,44 @@
+<html>
+	<head>
+	<title>ESP32-Car Status</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		body { font-family: Arial; text-align: center; margin:0px auto; padding-top: 30px;}
+		table { margin-left: auto; margin-right: auto; align:center; }
+		th { border: 1px solid; }
+		td { padding: 8 px; align:center; }
+		.button {
+			background-color: #2f4468;
+			border: none;
+			color: white;
+			padding: 10px 20px;
+			text-align: center;
+			text-decoration: none;
+			display: inline-block;
+			font-size: 18px;
+			margin: 6px 3px;
+			cursor: pointer;
+			/*-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;*/
+			-webkit-tap-highlight-color: rgba(0,0,0,0);
+		}
+		img {  width: auto ;
+			max-width: 100% ;
+			height: auto ; 
+		}
+	</style>
+	</head>
+	<body>
+	<table style="width:400px">
+		<tr>
+			<td><button onclick="gotoUrlPlusAuthKeyAndArgs('devSelection.html')" >< All devices</button></td>
+			<td><button onclick="logout()">Log out</button></td>
+			<td><h4 style="margin-bottom:0px;">Packets until auto-logout</h4></td><td><p id="remainingPackets">?</p></td>
+		</tr>
+	</table>
+	<h1>Device</h1>
+

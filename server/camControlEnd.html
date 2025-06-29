@@ -1,0 +1,656 @@
+<img src="" id="photo" >
+	<h3 id="networkAuthText"></h3>
+	<a id="networkAuthLink"></a>
+	<table id="2axisControls" style="display:none">
+		<tr>
+			<td></td>
+			<td align="center"><button class="button" onclick="sendCmd('up');">Up</button></td>
+			<td></td>
+		</tr>
+		<tr>
+			<td align="center"><button class="button" onclick="sendCmd('left');">Left</button></td>
+			<td align="center"><button class="button" style="background-color:dimgray; border-radius:10px;" onclick="sendCmd('center');">Center</button></td>
+			<td align="center"><button class="button" onclick="sendCmd('right');">Right</button></td>
+		</tr>
+		<tr>
+			<td></td>
+			<td align="center"><button class="button" onclick="sendCmd('down');">Down</button></td>
+			<td></td>
+		</tr>
+		<tr>
+			<td></td>
+			<td align="center"><button class="button" style="background-color: darkorange;" onclick="sendCmd('Light');">Light</button></td>
+		</tr>
+	</table>
+	<div id="6axisControls" style="display:none">
+		<img src="6AxisExplination.jpg" id="6axisExplination" ></img>
+		<table>
+			<tr>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(0,1);">Close</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(1,1);">CW</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(2,1);">Right</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(3,1);">Up</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,1);">Up</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(5,1);">CW</button></td>
+			</tr>
+			<tr>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(0,-1);">Open</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(1,-1);">CCW</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(2,-1);">Left</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(3,-1);">Down</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,-1);">Down</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(5,-1);">CCW</button></td>
+			</tr>
+			<tr>
+				<td align="center"><button class="button" style="background-color: darkorange;" onclick="sendCmd('Light');">Light</button></td>
+			</tr>
+		</table>
+	</div>
+	<table id="alarmControls">
+		<tr>
+			<td ><button id="armAlarmButton" class="button" onclick="sendCmd('ArmAlarm');">Arm Alarm</button></td>
+			<td ><button id="disarmAlarmButton" class="button" onclick="sendCmd('DisarmAlarm');">Disarm Alarm</button></td>
+		</tr>
+	</table>
+	<br/>
+	<h2>Connection Status</h2>
+	<table>
+		<tr>
+			<!--<th>Local Time</th>
+			<th>Last Device</th>-->
+			<th>Secs since Dev Pkt</th>
+			<th>Svr Ping (milliSecs)</th>
+			<th>Pkt Num</th>
+		</tr>
+		<tr>
+			<!--<td><h4 id ="lclTime"></h4></td>
+			<td><h4 id="time"></h4></td>-->
+			<td id="timeDiff"></td>
+			<td id="statusPing"></td>
+			<td id="pktNum"></td>
+		</tr>
+	</table>
+	<h2 onclick="toggleDisp(this, 'statusDisp')" style="cursor: pointer;">v Status</h2>
+	<table id="statusDisp" style="border:1px sold;">
+		<tr>
+			<th>alarm armed</th>
+			<th>light</th>
+			<th>magArmX</th>
+			<th>magArmY</th>
+			<th>magArmZ</th>
+		</tr>
+		<tr>
+			<td id="alarmArmed"></td>
+			<td id="light"></td>
+			<td id="magArmX"></td>
+			<td id="magArmY"></td>
+			<td id="magArmZ"></td>
+		</tr>
+		<tr>
+			<th>rssi</th><th>temp</th><th>magX</th><th>magY</th><th>magZ</th>
+		</tr>
+		<tr>
+			<td id="rssi"></td>
+			<td id="temp"></td>
+			<td id="magX"></td>
+			<td id="magY"></td>
+			<td id="magZ"></td>
+		</tr>
+		<tr>
+			<th>Mag Heading</th>
+			<th>Mag Alarm Diff</th>
+			<th>Mag Alrm Trgr</th>
+			<th>Alarm Output</th>
+			<th>Active</th>
+		</tr>
+		<tr>
+			<td id="magHeading"></td>
+			<td id="magAlarmDiff"></td>
+			<td id="magAlarmTrgr"></td>
+			<td id="alarmOutput"></td>
+			<td id="activelyCommanded"></td>
+		</tr>
+
+
+		<tr>
+			<th id="numServosHdg">Num Servos</th>
+		</tr>
+		<tr>
+			<td id="numServos"></td>
+		</tr>
+
+		<tr>
+			<th id="servo1Hdg" style="display:none;">Servo1</th>
+			<th id="servo2Hdg" style="display:none;">Servo2</th>
+			<th id="servo3Hdg" style="display:none;">Servo3</th>
+			<th id="servo4Hdg" style="display:none;">Servo4</th>
+			<th id="servo5Hdg" style="display:none;">Servo5</th>
+			<th id="servo6Hdg" style="display:none;">Servo6</th>
+		</tr>
+		<tr>
+			<td id="servo1"></td>
+			<td id="servo2"></td>
+			<td id="servo3"></td>
+			<td id="servo4"></td>
+			<td id="servo5"></td>
+			<td id="servo6"></td>
+		</tr>
+
+
+	</table>
+	<h2 onclick="FetchAndShowOrHideSettingsTab(this)" style="cursor: pointer;">> Settings</h2>
+	<div id="settingsDisp" style="display:None;">
+		<table>
+			<tr>
+				<th>Mag Threshold</th>
+				<th>Cam Quality</th>
+				<th>Cam Resolution</th>
+				<th>Tx Power</th>
+			</tr>
+			<tr>
+				<td id="magThreshold"></td>
+				<td id="camQuality"></td>
+				<td id="camResolution"></td>
+				<td id="txPower"></td>
+			</tr>
+		</table>
+		<table>
+			<tr>
+				<td><input id="magThresholdNum" type="number" min="0" max="500" value="20"></input></td>
+				<td><button onclick="sendMagThreshold();">Set Mag Alarm Threshold</button></td>
+			</tr>
+			<tr>
+				<td><input id="camQualityNum" type="number" min="0" max="63" value="30"></input></td>
+				<td><button onclick="sendCamQuality();">Set Cam Quality (63 worst)-(0 best)</button></td>
+			</tr>
+			<tr>
+				<td><input id="txPowerNum" type="number" min="8" max="80" value="50" title="[8, 84] -> 2dBm - 20dBm"></input></td>
+				<td><button onclick="sendTxPower();">Set Tx Power (8 lowest)-(80 highest)</button></td>
+			</tr>
+			<tr>
+				<td><button onclick="sendCmd('camFlipV', 1);">Vert Flip</button></td>
+				<td><button onclick="sendCmd('camFlipV', 0);">Vert No Flip</button></td>
+				<td><button onclick="sendCmd('camFlipH', 1);">Horiz Flip</button></td>
+				<td><button onclick="sendCmd('camFlipH', 0);">Horiz No Flip</button></td>
+			</tr>
+			<tr>
+				<td><button onclick="camRot90(1);">90deg Rotate</button></td>
+				<td><button onclick="camRot90(0);">No Rotate</button></td>
+			</tr>
+			<tr>
+				<td><button onclick="sendCmd('camRes', 'QVGA');">QVGA</button></td>
+				<td><button onclick="sendCmd('camRes', 'CIF');">CIF</button></td>
+				<td><button onclick="sendCmd('camRes', 'VGA');">VGA</button></td>
+				<td><button onclick="sendCmd('camRes', 'SVGA');">SVGA</button></td>
+			</tr>
+			<tr>
+				<td><input id="devDescription" type="text" maxlength="32" value="Description"></input></td>
+				<td><button onclick="sendDevDescription();">Set Device Description</button></td>
+			</tr>
+			</table>
+			<h3 onclick="toggleDisp(this, 'storedSvrUrlTable')" style="cursor: pointer;">> SvrUrls</h3>
+			<table id="storedSvrUrlTable" style="display:None;">
+			</table>
+			<h3 onclick="toggleDisp(this, 'storedSsidsTable')" style="cursor: pointer;">> Networks</h3>
+			<table id="storedSsidsTable" style="display:None;">
+			</table>
+			<h3 onclick="FetchAndShowOrHideIOConfigTab(this)" style="cursor: pointer;">> I/O Config</h3>
+
+			<div id="ioConfigDisp" style="display:None;">
+				<h4>Warning! <br/>
+					config inconsistent with hardware will cause incorrect interface <br/>
+					and could lead to unintened outputs causing damage</h4>
+				<table>
+					<tr>
+						<td><input id="configNumServos" type="number" min="0" max="6"></input></td>
+						<td><button onclick="sendCmd( 'cfgNumServo', document.getElementById('configNumServos').value )">Set Num Servos</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasLight" type="checkbox"></input></td>
+						<td><button onclick="sendConfig('cfgHasLght','configHasLight')">Set Has Light</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasAlarm" type="checkbox"></input></td>
+						<td><button onclick="sendConfig('cfgHasAlrm','configHasAlarm')">Set Has Alarm</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasMic" type="checkbox"></input></td>
+						<td><button onclick="sendConfig('cfgHasMic','configHasMic')">Set Has Mic</button></td>
+					</tr>
+					<tr>
+						<td><input id="configHasSpkr" type="checkbox"></input></td>
+						<td><button onclick="sendConfig('cfgHasSpkr','configHasSpkr')">Set Has Speaker</button></td>
+					</tr>
+					<tr>
+						<td><input id="configIsUltrasoundSensor" type="checkbox"></input></td>
+						<td><button onclick="sendConfig('cfgIsUltSnd','configIsUltrasoundSensor')">Set Is Ultrasound Sensor</button></td>
+					</tr>
+				</table>
+			</div>
+		</div>
+		<script src="commonFunctions.js"></script>
+		<script>
+		const MAX_STORED_NETWORKS = 10;
+		const MAX_NUM_SERVOS = 6;
+		
+		function toggleDisp(titleElm, elmId){
+			let elm = document.getElementById(elmId);
+			let title = titleElm.textContent.slice(2);
+			if( elm.style.length > 0 ){
+				elm.style = "";
+				titleElm.textContent = "v " + title;
+				return true;
+			}else{
+				elm.style = "display:none;";
+				titleElm.textContent = "> " + title;
+				return false;
+			}
+		}
+		
+		function FetchAndShowOrHideSettingsTab(titleElm){
+			let settingsShown = toggleDisp(titleElm, 'settingsDisp');
+			if( settingsShown ){
+				sendCmd('settings');
+			}else{
+			}
+		}
+
+		function FetchAndShowOrHideIOConfigTab(titleElm){
+			let ioConfigShown = toggleDisp(titleElm, 'ioConfigDisp');
+			if( ioConfigShown ){
+				sendCmd('ioConfig');
+			}else{
+			}
+		}
+		
+		const clickableButtonBgColor = "#45B147"; //rgb(69, 177, 71)";
+		const nonClickableButtonBgColor = "#8fa9d7";
+		function SetArmDisarmBtnColors(x){
+			if(x > 0){
+				document.getElementById("armAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
+				document.getElementById("disarmAlarmButton").style.backgroundColor = clickableButtonBgColor;
+			}else{
+				document.getElementById("armAlarmButton").style.backgroundColor = clickableButtonBgColor;
+				document.getElementById("disarmAlarmButton").style.backgroundColor = nonClickableButtonBgColor;
+			}
+		}
+		function ArmDisarmAlarm(x){
+			sendCmd(x.toString());
+		}
+		
+		
+		function sendDevDescription(){
+		sendCmd("devDescrp", document.getElementById("devDescription").value );
+		}
+		
+		
+		function sendSvrUrl(idx){
+			let svrUrl = document.getElementById('svrUrlVal'+idx).value;
+			sendCmd('svrUrl'+idx, svrUrl );
+		}
+		let pendingSendSvrCertStr = '';
+		let pendingSendSvrCertNum = 0;
+		let pendingSendSvrCertCbIter = 0;
+		function continueSendSvrCert( ){
+
+			//send certificate in parts
+
+			let certStr = pendingSendSvrCertStr;
+			let certStrLen = certStr.length;
+
+			if( pendingSendSvrCertCbIter == 0 ){
+				let certStrLenStr = ""+certStrLen;
+				pendingSendSvrCertCbIter = 1;
+				sendCmd("svrCertLen"+pendingSendSvrCertNum, certStrLenStr, certStrLenStr.length );
+				
+				return;
+			}
+		
+			let NUM_SVR_CERT_PARTS = 8;
+			let SVR_CERT_PART_LENGTH = 256;
+			let partIdx = 0;
+			let partLen = SVR_CERT_PART_LENGTH;
+
+			let i = pendingSendSvrCertCbIter - 1;
+			partIdx = i*SVR_CERT_PART_LENGTH;
+			partLen = Math.min( SVR_CERT_PART_LENGTH, certStrLen - partIdx);
+			if( partLen <= 0 ){ //finished sending all parts of cert
+				pendingSendSvrCertStr = '';
+				pendingSendSvrCertCbIter = 0;
+				return;
+			}
+			let certPart = certStr.slice(partIdx,partIdx+partLen);
+			pendingSendSvrCertCbIter += 1;
+			sendCmd("svrCert"+pendingSendSvrCertNum+"_"+i, certPart, partLen );
+
+		}
+		function sendSvrCert( num ){
+			if( pendingSendSvrCertCbIter == 0 ){ //prevent interrupting sending
+				pendingSendSvrCertStr = document.getElementById("svrCert"+num).value;
+				pendingSendSvrCertNum = num;
+				continueSendSvrCert( );
+			}
+		}
+		
+		let axisAngles = Array(MAX_NUM_SERVOS).fill(90);
+		
+		function sendAxisDirCmd(axis, dir){
+			if( dir > 0 )
+				axisAngles[axis] += 10;
+			else
+				axisAngles[axis] -= 10;
+			sendCmd("angAxis"+axis, axisAngles[axis] );
+		}
+		
+		function sendConfig(cmd, elmName){
+			sendCmd( cmd, document.getElementById(elmName).checked );
+		}
+		
+		/*
+		function sendConfigNumServos(){
+			sendCmd("cfgNumServo", document.getElementById("configNumServos").value );
+		}
+		function sendConfigHasLight(){
+			sendCmd("cfgHasLght", document.getElementById("configHasLight").value );
+		}
+		function sendConfigHasAlarm(){
+			sendCmd("cfgHasAlrm", document.getElementById("configHasAlarm").value );
+		}
+		function sendConfigHasMic(){
+			sendCmd("cfgHasMic", document.getElementById("configHasMic").value );
+		}
+		function sendConfigHasSpeaker(){
+			sendCmd("cfgHasSpkr", document.getElementById("configHasSpkr").value );
+		}
+		function sendConfigIsUltrasoundSensor(){
+			sendCmd("cfgIsUltrasoundSensor", document.getElementById("configIsUltrasoundSensor").value );
+		}
+		*/
+
+		function sendMagThreshold(){
+			sendCmd("magAlrmThrsh", document.getElementById("magThresholdNum").value );
+		}
+		function sendCamQuality(){
+			sendCmd("camQuality", document.getElementById("camQualityNum").value );
+		}
+		function sendTxPower(){
+			sendCmd("txPower", document.getElementById("txPowerNum").value );
+		}
+		function sendWifi_SSID_Pass(n){
+			sendCmd("net"+n, document.getElementById("net"+n).value.padEnd(32) );
+			sendCmd("pass"+n, document.getElementById("pass"+n).value.padEnd(32) );
+		}
+
+		var rot90 = false;
+		function camRot90(rot){
+			rot90 = rot;
+			let photoElm = document.getElementById("photo");
+			if( rot ){
+				let widthMinHeight = (photoElm.width - photoElm.height)/2;
+				photoElm.style = "transform: rotate(-90deg); margin-bottom: " + widthMinHeight + "px; margin-top: " + widthMinHeight + "px;";
+			}else{
+				photoElm.style = "";
+			}
+
+		}
+		
+		function fillStoredSSIDsTable(){
+			let ssidsTable = document.getElementById("storedSsidsTable");
+
+			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
+				let ssidTr = "\
+				<tr>\
+				<th>Net"+i+"</th>\
+				<td><input id='net"+i+"' type='text'></input></td>\
+				<th>Pass"+i+"</th>\
+				<td><input id='pass"+i+"' type='text'></input></td>\
+				<td><button onClick=\"sendWifi_SSID_Pass("+i+")\">Set</button></td>\
+				</tr>\
+				";
+				ssidsTable.innerHTML += ssidTr;
+			}
+		}
+		
+		
+		function genSvrEntryTable(){
+			let svrUrlTable = document.getElementById("storedSvrUrlTable");
+			for(let i = 0; i < MAX_STORED_NETWORKS; ++i){
+				let svrUrlTbl = 
+					'<table>\
+							<tr>\
+								<th>Server Url'+i+'</th>\
+							</tr>\
+							<tr><td>\
+								<table>\
+									<tr>\
+										<td><input id="svrUrlVal'+i+'" type="text"></input></td>\
+										<td><button onclick="sendSvrUrl('+i+')">Set Cloud Server Url (wss://<ip or url>:port)</button></td>\
+									</tr>\
+								</table>\
+							</td></tr>\
+						</table>\
+						<table>\
+							<tr>\
+								<td><textarea id="svrCert'+i+'" cols="80" rows="10"></textarea></td>\
+							</tr>\
+							<tr>\
+								<td><button onclick="sendSvrCert('+i+')">Set Cloud Server Cert</button></td>\
+							</tr>\
+						</table>';
+				svrUrlTable.innerHTML += svrUrlTbl;
+			}
+		}
+		genSvrEntryTable();
+
+		//window.onload = document.getElementById("photo").src = window.location.href.slice(0, -1) + ":81/stream";
+
+		function DisplayTime( bArr ){
+			let lclTime = Date.now();
+			let lastDevTime = parseInt(sFBa( bArr ));
+			let diff = lclTime - lastDevTime;
+			//document.getElementById("lclTime").innerText = lclTime;
+			//document.getElementById( "time" ).innerText = lastDevTime;
+			document.getElementById( "timeDiff" ).innerText = diff/1000;
+		}
+
+		function DisplaySettings(bArr){
+		
+			let a = new Uint8Array(bArr);
+			let rL = bArr.byteLength;
+			if( rL < 10)
+				return; //avoid printing undefined
+
+			let idx = 0;
+			document.getElementById("magThreshold").innerText	= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("camQuality").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("camResolution").innerText	= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("txPower").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+
+			let MAX_STORED_NETWORKS = 10;
+			let NETWORK_NAME_LEN = 32;
+
+			for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
+				document.getElementById("svrUrlVal"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
+			}
+
+
+			for( let i = 0; i < MAX_STORED_NETWORKS; ++i ){
+				document.getElementById("net"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
+				document.getElementById("pass"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
+			}
+
+		}
+		
+		let MIN_STATUS_RESPONSE_LENGTH = 67;
+		function DisplayStatus(bArr){
+
+			if( timeRequestedStatus != null ){
+				const now = new Date();
+				const diff = now - timeRequestedStatus;
+				document.getElementById("statusPing").innerText = diff;
+				inProgressRequest = false;
+			}
+
+			++numStatusRequests;
+
+			let a = bArr;
+			let rL = bArr.byteLength;
+			if( rL < MIN_STATUS_RESPONSE_LENGTH ) //avoid overwriting with NaN/undefined on bad response
+				return;
+			let idx = 0;
+			let alarmSet = 										  parseInt(sFBa(a.slice(idx, idx+2))); idx += 2;
+			SetArmDisarmBtnColors(alarmSet);
+			document.getElementById("alarmArmed").innerText		= alarmSet;
+			document.getElementById("light").innerText			= parseInt(sFBa(a.slice(idx, idx+2))); idx += 2;
+			document.getElementById("magArmX").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("magArmY").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("magArmZ").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+
+			document.getElementById("rssi").innerText			= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("temp").innerText			= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("magX").innerText			= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("magY").innerText			= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("magZ").innerText			= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+
+			document.getElementById("magHeading").innerText		= parseFloat(sFBa(a.slice(idx, idx+10))); idx += 10;
+			document.getElementById("magAlarmDiff").innerText	= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
+			document.getElementById("magAlarmTrgr").innerText	= parseInt(sFBa(a.slice(idx, idx+2))); idx += 2;
+			document.getElementById("alarmOutput").innerText	= parseInt(sFBa(a.slice(idx, idx+2))); idx += 2;
+
+			document.getElementById("activelyCommanded").innerText	= parseInt(sFBa(a.slice(idx, idx+3))); idx += 3;
+
+			numServos = parseInt(sFBa(a.slice(idx, idx+2))); idx += 2;
+			document.getElementById("numServos").innerText = numServos;
+
+			if( numServos <= 2 ){
+				document.getElementById("2axisControls").style = "";
+				document.getElementById("6axisControls").style = "display:none";
+			}else if( numServos <= 6 ){
+				document.getElementById("2axisControls").style = "display:none";
+				document.getElementById("6axisControls").style = "";
+			}
+
+			for( let i = 0; i < MAX_NUM_SERVOS; ++i ){
+				let idxStr = (i+1).toString();
+				if( i<numServos ){
+					document.getElementById("servo"+idxStr+"Hdg").style = "";
+					document.getElementById("servo"+idxStr).innerText			= parseInt(sFBa(a.slice(idx, idx+3))); idx += 3;
+				}else{
+					document.getElementById("servo"+idxStr+"Hdg").style = "display:none";
+				}
+			}
+
+		}
+
+
+
+		let lastNetworkUpdateTime = 0;
+		const networkUpdateInterval = 1000;
+		function handleWebSockDataType(datType, dat, datLen){
+			if( datType.startsWith("Time") ){
+				DisplayTime( dat );
+			}else if( datType.startsWith("Stat") ){
+				DisplayStatus( dat );
+			}else if( datType.startsWith("Set") ){
+				DisplaySettings( dat, datLen );
+			}else if( datType.startsWith("Img") && datLen > 0){
+				//https://gist.github.com/candycode/f18ae1767b2b0aba568e
+				let arrayBufferView = new Uint8Array( dat );
+				let blob = new Blob( [arrayBufferView], { type: "image/jpeg" } );
+				let urlCreator = window.URL || window.webkitURL;
+				let imageUrl = urlCreator.createObjectURL( blob );
+				let img = document.querySelector( "#photo" );
+				img.src = imageUrl;
+				camRot90(rot90);
+			}else if(datType.startsWith("cmdResults")){
+				let a = dat;//new Uint8Array( dat );
+				for(let i = 0; i < datLen; ++i){
+					let completedCmdId = parseInt(sFBa(a.slice(i*2,(i+1)*2)));
+					if( completedCmdId == 16 || completedCmdId == 17 )
+						continueSendSvrCert();
+				}
+			}else if( datType.startsWith("remPkts") ){
+				document.getElementById("remainingPackets").innerText = sFBa(dat);
+			//	console.log( respType );
+			}else if( datType.startsWith("logout") ){
+				logout();
+			}
+		}
+
+
+		var sceneTime = Date.now()
+
+		//variables to wait for response
+		var inProgressRequest = false;
+		var timeRequestedStatus = null;
+		var numLoopsInProgress = 0;
+		const MaxProgressLoops = 10;
+
+		var numStatusRequests = 0;
+		const numStatusRequestsBeforeSettingsRequest = 100;
+		function MainLoop(){
+			sceneTime = Date.now()
+			if(!inProgressRequest){
+				
+				
+				if( numStatusRequests >= numStatusRequestsBeforeSettingsRequest ){
+					sendCmd("settings");
+					//sendCmd(datType, dat, datLen=0) 
+					//sendWebsocketServerMessage("1csettings      0     0");
+					numStatusRequests = 0;
+				}else{
+					timeRequestedStatus = new Date()
+					sendCmd("status");
+					sendCmd("image");
+					//sendWebsocketServerMessage("1cstatus        0     0");
+					//sendWebsocketServerMessage("1cimage         0     0");
+				}
+				
+				inProgressRequest = true;
+			}else{
+				if( numLoopsInProgress > MaxProgressLoops ){ //done waiting for response
+					numLoopsInProgress = 0;
+					inProgressRequest = false;
+				}
+				numLoopsInProgress += 1;
+			}
+		}
+		
+		//sendWebsocketServerMessage("hi testing connection from browser to server");
+
+		fillStoredSSIDsTable();
+		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
+		setInterval(MainLoop, 10000); //100ms (10x a second)
+		camRot90(true);
+		
+		function begin(){
+			thisCliId = document.getElementById("cliId").innerHTML;
+		}
+		window.addEventListener('load', begin, false);
+		
+		/*
+		buf = []
+		function fillStringWithRandomASCII( buf, len){
+			
+			let numRange   = ('9'.charCodeAt(0) - '0'.charCodeAt(0));
+			let upperRange = ('Z'.charCodeAt(0) - 'A'.charCodeAt(0));
+			let lowerRange = ('z'.charCodeAt(0) - 'a'.charCodeAt(0));
+			let range = numRange + upperRange + lowerRange;
+			for( let i = 0; i < len; ++i ){
+				let c = Math.round(Math.random() * range);
+				if( c <= numRange ){
+					buf.push( String.fromCharCode( c + '0'.charCodeAt(0) ) );
+				}else if ( c <= numRange + upperRange ){
+					buf.push( String.fromCharCode( (c - numRange) + 'A'.charCodeAt(0) ) );
+				}else{
+					buf.push( String.fromCharCode( (c - (numRange + upperRange) ) + 'a'.charCodeAt(0) ) );
+				}
+			}
+		}
+		fillStringWithRandomASCII( buf, 2);
+		*/
+		
+		
+		</script>
+	</body>
+</html>

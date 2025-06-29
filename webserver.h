@@ -21,7 +21,7 @@ static esp_err_t index_handler(httpd_req_t *req){
 	return httpd_resp_send(req, (const char *)INDEX_HTML, strlen(INDEX_HTML));
 }
 
-#define MIN_STATUS_RESPONSE_LENGTH 77 //(3+2+5+5+5){20} +(5+5+5+5+5){25} +(10+5+5+5+5){30} + 3
+#define MIN_STATUS_RESPONSE_LENGTH 68 //(2+2+5+5+5){19} +(5+5+5+5+5){25} +(10+5+2+2+2){21} + 2
 uint16_t fillStatusString(char * outStr){
 	//+1's to snprintf lengths because of \0 null terminator always appended
 
@@ -29,11 +29,11 @@ uint16_t fillStatusString(char * outStr){
 
 	//fill header
 	snprintf( &(outStr[idx]), 11+1, "Stat" ); idx += 11;
-	snprintf( &(outStr[idx]), 6+1, "% 6d", MIN_STATUS_RESPONSE_LENGTH+(5*numServos) ); idx += 6;
+	snprintf( &(outStr[idx]), 6+1, "% 6d", MIN_STATUS_RESPONSE_LENGTH+(3*numServos) ); idx += 6;
 
 	//fill data
-	snprintf( &(outStr[idx]), 3+1,  "% 3d", alarmArmed); idx += 3;
-	snprintf( &(outStr[idx]), 2+1,  "% 2d", (int)lightLedValue); idx += 2;
+	snprintf( &(outStr[idx]), 2+1,  "% 2u", alarmArmed); idx += 2;
+	snprintf( &(outStr[idx]), 2+1,  "% 2u", (int)lightLedValue); idx += 2;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAX); idx += 5; //alarmInit_magSample.X);
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAY); idx += 5; //alarmInit_magSample.Y);
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAZ); idx += 5; //alarmInit_magSample.Z);
@@ -46,16 +46,18 @@ uint16_t fillStatusString(char * outStr){
 
 	snprintf( &(outStr[idx]), 10+1, "% 10f", magHeading); idx += 10;
 	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmDiff); idx += 5;
-	snprintf( &(outStr[idx]), 5+1,  "% 5i", magAlarmTriggered); idx += 5;
-	snprintf( &(outStr[idx]), 5+1,  "% 5i", alarmOutput); idx += 5;
-	snprintf( &(outStr[idx]), 5+1,  "% 5i", activelyCommanded); idx += 5;
+	snprintf( &(outStr[idx]), 2+1,  "% 2u", magAlarmTriggered); idx += 2;
+	snprintf( &(outStr[idx]), 2+1,  "% 2u", alarmOutput); idx += 2;
 
-  snprintf( &(outStr[idx]), 3+1,  "% 3i", numServos); idx += 3;
+	snprintf( &(outStr[idx]), 3+1,  "% 3u", activelyCommanded); idx += 3;
 
-  for( uint8_t i = 0; i < numServos; ++i )
-    snprintf( &(outStr[idx]), 5+1,  "% 5d",servoAngles[i]); idx += 5;
+	snprintf( &(outStr[idx]), 2+1,  "% 2u", numServos); idx += 2;
+
+  for( uint8_t i = 0; i < numServos; ++i ){
+    snprintf( &(outStr[idx]), 3+1,  "% 3u",servoAngles[i]); idx += 3;
+  }
 	//memset() //snprintf will set a \0 at end so don't need to memset
-	return idx;
+	return idx+1;
 }
 
 void ObfsucatePass(char *str, uint8_t len){
@@ -82,7 +84,7 @@ uint16_t fillSettingsString( char * outputStr ){
 	esp_wifi_get_max_tx_power(&txPower);
 	snprintf( &(outputStr[oIdx]), 5, "%i\n", txPower); oIdx += 5;
 
-  //oIdx = 37 (11+6+5+5+5)
+	//oIdx = 37 (11+6+5+5+5)
 
 	Serial.println("fSS storedVals");
 	preferences.begin("storedVals", true);
@@ -272,6 +274,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		sucessfulyHandledCmd = 5;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
+  /*
 	else if(!strncmp(cmd, "left", 4)) {
 		if(servoAngles[1] <= 170) {
 			servoAngles[1] += 10;
@@ -302,6 +305,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		sucessfulyHandledCmd = 8;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
+  */
 	else if(!strncmp(cmd, "center", 6)) {
     //for all active servos
     for(uint8_t sNum = 0; sNum < numServos; ++sNum){
@@ -417,7 +421,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		
 			uint8_t readNumServos = atoir_n(value, valLen);
       Serial.print("readNumServos "); Serial.println(readNumServos);
-			if( readNumServos < MAX_NUM_SERVOS && readNumServos >= 0 ){
+			if( readNumServos <= MAX_NUM_SERVOS && readNumServos >= 0 ){
 				numServos = readNumServos;
 				preferences.begin("storedVals", false);
 				preferences.putUChar("numServos", numServos );
@@ -430,7 +434,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "cfgHasLght", 10)){
 		preferences.begin("storedVals", false);
-			bool hasLight = cmd[11] == 1;
+			bool hasLight = atoir_n(value, valLen);
 			preferences.putBool("hasLight", hasLight );
 			Serial.print(" storing hasLight");Serial.println(hasLight);
 		preferences.end();
@@ -438,11 +442,35 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "cfgHasAlrm", 10)){
 		preferences.begin("storedVals", false);
-			bool hasAlarm = cmd[11] == 1;
+			bool hasAlarm = atoir_n(value, valLen);
 			preferences.putBool("hasLight", hasAlarm );
 			Serial.print(" storing hasAlarm");Serial.println(hasAlarm);
 		preferences.end();
 		sucessfulyHandledCmd = 25;
+	}
+  else if(!strncmp(cmd, "cfgHasMic", 9)){
+		preferences.begin("storedVals", false);
+			bool hasMic = atoir_n(value, valLen);
+			preferences.putBool("hasMic", hasMic );
+			Serial.print(" storing hasMic");Serial.println(hasMic);
+		preferences.end();
+		sucessfulyHandledCmd = 26;
+	}
+  else if(!strncmp(cmd, "cfgHasSpkr", 10)){
+		preferences.begin("storedVals", false);
+			bool hasSpkr = atoir_n(value, valLen);
+			preferences.putBool("hasSpkr", hasSpkr );
+			Serial.print(" storing hasSpkr");Serial.println(hasSpkr);
+		preferences.end();
+		sucessfulyHandledCmd = 27;
+	}
+  else if(!strncmp(cmd, "cfgIsUltSnd", 11)){
+		preferences.begin("storedVals", false);
+			bool isUltSnd = atoir_n(value, valLen);
+			preferences.putBool("isUltSnd", isUltSnd );
+			Serial.print(" storing isUltSnd");Serial.println(isUltSnd);
+		preferences.end();
+		sucessfulyHandledCmd = 28;
 	}
 
 	return sucessfulyHandledCmd;
@@ -640,6 +668,7 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 		uint8_t hdrOffset = fillPktHdr(lastCsiInfoStr);
 		if( postType == DEV_STATUS ){
 			uint16_t statLen = fillStatusString(&lastCsiInfoStr[hdrOffset]);
+      //printPayload(hdrOffset, hdrOffset+statLen, lastCsiInfoStr );
 			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), hdrOffset+statLen, portMAX_DELAY);
 		}else if( postType == DEV_SETTINGS ){
 			uint16_t setLen = fillSettingsString(&lastCsiInfoStr[hdrOffset]);

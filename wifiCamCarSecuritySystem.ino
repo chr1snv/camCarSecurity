@@ -48,11 +48,15 @@ Servo servos[MAX_NUM_SERVOS];
 int servoAngles[MAX_NUM_SERVOS];
 int defaultServoAngles[MAX_NUM_SERVOS] = {90,90,90, 90,90,90};
 
+bool hasLight;
+bool hasMagSensor;
+
 //init servos //to be used after number of servos changes
 void initServos(){
   for(uint8_t sNum = 0; sNum < MAX_NUM_SERVOS; ++sNum){
     servos[sNum].detach();
   }
+  Serial.print( "setting up " ); Serial.print( numServos ); Serial.println( " num servos" );
   for(uint8_t sNum = 0; sNum < numServos; ++sNum){
 	  servos[sNum].setPeriodHertz(50);    // standard 50 hz servo
 	  servos[sNum].attach( ServoOutputPins[sNum] ); //defaults to 500, 2500 microseconds //, 1000, 2000);
@@ -109,19 +113,27 @@ uint8_t mainLoopDelayMillis = 100;
 void setup() {
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 
+  //read config
   preferences.begin("storedVals", true);
-  numServos = preferences.getUChar( "numServos" );
+    numServos = preferences.getUChar( "numServos" );
+    hasLight = preferences.getBool( "hasLight" );
+    hasMagSensor = preferences.getBool( "hasMagSensor" );
   preferences.end();
 
+  //setup servos
 	initServos();
 
 	//init lights
-	pinMode(LightLEDPin, OUTPUT);
-	pinMode(redLEDPin, OUTPUT);
-	digitalWrite(redLEDPin, LOW);
+  if( hasLight ){
+	  pinMode(LightLEDPin, OUTPUT);
+	  digitalWrite(redLEDPin, LOW);
+  }
 
 	//initalize sensor communications
-	ori_init();
+  if( hasMagSensor ){
+	  ori_init();
+    ArmAlarm(false); //set the siren output low
+  }
 	temp_init();
 	camera_init();
 
@@ -140,9 +152,8 @@ void setup() {
 	Serial.println(ESP.getFreePsram());
 
 	//turn on status led
+  pinMode(redLEDPin, OUTPUT);
 	digitalWrite(redLEDPin, HIGH);
-
-	ArmAlarm(false); //set the siren output low
 
 	//esp_wifi_init();
 	connectWiFi(wifi_scanNetworks());
@@ -181,7 +192,8 @@ void loop() {
 	//read sensors
 	temp_sense();
 	sense_wifi_rssi();
-	ori_sense();
+  if( hasMagSensor )
+	  ori_sense();
 
 	//check if alarm conditions met
 	if( alarmArmed ){
