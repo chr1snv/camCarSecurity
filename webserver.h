@@ -264,13 +264,15 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 
 	//servo position control
-	else if(!strncmp(cmd, "up", 2)) {
-		if(servoAngles[0] <= 170) {
-			servoAngles[0] += 10;
-			servos[0].write(servoAngles[0]);
+	else if(!strncmp(cmd, "angAxis", 7)) {
+    uint8_t axis = cmd[7] - '0';
+    uint8_t newAngle = atoir_n(&value[valLen-1], valLen);
+		if(axis <= numServos && newAngle <= 180) {
+			servoAngles[axis] = newAngle;
+			servos[axis].write(servoAngles[axis]);
 		}
-		Serial.println(servoAngles[0]);
-		Serial.println("Up");
+		//Serial.println(servoAngles[0]);
+		//Serial.println("angAxis");
 		sucessfulyHandledCmd = 5;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
