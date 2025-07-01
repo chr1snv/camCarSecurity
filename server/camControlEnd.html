@@ -28,21 +28,29 @@
 			<tr>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(0,1);">Close</button></td>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(1,1);">CW</button></td>
-				<td align="center"><button class="button" onclick="sendAxisDirCmd(2,1);">Right</button></td>
-				<td align="center"><button class="button" onclick="sendAxisDirCmd(3,1);">Up</button></td>
-				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,1);">Up</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(2,1);">Left</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(3,1);">Down</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,1);">Down</button></td>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(5,1);">CW</button></td>
+			</tr>
+			<tr>
+				<td><input id="angAxis0" type="number" min="0" max="180" step="1" value="90"></input></td>
+				<td><input id="angAxis1" type="number" min="0" max="180" step="1" value="90"></input></td>
+				<td><input id="angAxis2" type="number" min="0" max="180" step="1" value="90"></input></td>
+				<td><input id="angAxis3" type="number" min="0" max="180" step="1" value="90"></input></td>
+				<td><input id="angAxis4" type="number" min="0" max="180" step="1" value="90"></input></td>
+				<td><input id="angAxis5" type="number" min="0" max="180" step="1" value="90"></input></td>
 			</tr>
 			<tr>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(0,-1);">Open</button></td>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(1,-1);">CCW</button></td>
-				<td align="center"><button class="button" onclick="sendAxisDirCmd(2,-1);">Left</button></td>
-				<td align="center"><button class="button" onclick="sendAxisDirCmd(3,-1);">Down</button></td>
-				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,-1);">Down</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(2,-1);">Right</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(3,-1);">Up</button></td>
+				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,-1);">Up</button></td>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(5,-1);">CCW</button></td>
 			</tr>
 			<tr>
-				<td align="center"><button class="button" style="background-color: darkorange;" onclick="sendCmd('Light');">Light</button></td>
+				<td align="center"><button class="button" style="background-color:dimgray; border-radius:10px;" onclick="centerAllServos();">Center All</button></td>
 			</tr>
 		</table>
 	</div>
@@ -334,12 +342,33 @@
 		
 		let axisAngles = Array(MAX_NUM_SERVOS).fill(90);
 		
+		function centerAllServos(){
+			for( let i = 0; i < MAX_NUM_SERVOS; ++i ){
+				axisAngles[i] = 90;
+				document.getElementById("angAxis"+i).value = 90;
+			}
+			sendCmd('center')
+		}
+		
 		function sendAxisDirCmd(axis, dir){
+			let elm = document.getElementById("angAxis"+axis);
+			if( typeof( elm.value ) == "string" )
+				axisAngles[axis] = Math.floor( parseFloat( elm.value ) );
+			else
+				axisAngles[axis] = elm.value;
+
 			if( dir > 0 )
 				axisAngles[axis] += 10;
 			else
 				axisAngles[axis] -= 10;
+
+			if( axisAngles[axis] < 0 )
+				axisAngles[axis] = 0;
+			if( axisAngles[axis] > 180 )
+				axisAngles[axis] = 180;
+			elm.value = axisAngles[axis];
 			sendCmd("angAxis"+axis, axisAngles[axis] );
+			
 		}
 		
 		function sendConfig(cmd, elmName){
