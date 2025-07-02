@@ -135,7 +135,7 @@ void setup() {
     //read servo assignments
     bool unassignedServos[MAX_NUM_SERVOS] = {true,true,true, true,true,true};
     for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
-      uint8_t val = preferences.getUChar( "axSrvo"+i, MAX_NUM_SERVOS+1 );
+      uint8_t val = preferences.getUChar( "axSrv"+i, MAX_NUM_SERVOS+1 );
       val = CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( unassignedServos, val );
       axToSrvos[i] = val;
     }
