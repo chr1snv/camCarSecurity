@@ -72,10 +72,11 @@ uint16_t fillSettingsString( char * outputStr ){
 
 	uint16_t oIdx = 0;
 
-		//fill header
+	//fill header
 	snprintf( &(outputStr[oIdx]), 11+1, "Set" ); oIdx += 11;
 	snprintf( &(outputStr[oIdx]), 6+1, "% 6d", SETTINGS_RESPONSE_LENGTH ); oIdx += 6;
 
+  //fill mag threshold, cam quality, cam resolution, tx power
 	snprintf( &(outputStr[oIdx]),  5, "%i\n", MAG_ALARM_DELTA_THRESHOLD); oIdx += 5;
 	sensor_t * s = esp_camera_sensor_get();
 	snprintf( &(outputStr[oIdx]),  5, "%i\n", s->status.quality); oIdx += 5;
@@ -84,7 +85,10 @@ uint16_t fillSettingsString( char * outputStr ){
 	esp_wifi_get_max_tx_power(&txPower);
 	snprintf( &(outputStr[oIdx]), 5, "%i\n", txPower); oIdx += 5;
 
-	//oIdx = 37 (11+6+5+5+5)
+  //fill device name
+  //preferences.getBytes("devDescrip", &(outputStr[oIdx], NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
+
+	//oIdx = 37 (11+6+5+5+5) + 32 = 69
 
 	Serial.println("fSS storedVals");
 	preferences.begin("storedVals", true);
@@ -98,7 +102,7 @@ uint16_t fillSettingsString( char * outputStr ){
 			memcpy( &(outputStr[oIdx]), networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 		}
 
-    //oIdx = 357 oIdx (37) += ( MAX_NUM_SVRS (10) * NETWORK_NAME_LEN (32) ) (320)
+    //oIdx = 357 oIdx (37) += ( MAX_NUM_SVRS (10) * NETWORK_NAME_LEN (32) ) (320) = 389
 
 		//networks and passwords
 		//Serial.println("svrUrl");
@@ -260,54 +264,35 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.print("mainDelay"); Serial.println(del);
 		del = max( min((uint8_t)100, del), (uint8_t)10 ); //clamp setting to between 10 and 100 millis
 		mainLoopDelayMillis = del;
-		sucessfulyHandledCmd = 21;
+		sucessfulyHandledCmd = 5;
 	}
+
+  else if(!strncmp(cmd, "devDescrip", 10)){
+    preferences.begin("storedVals", false);
+			uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
+			preferences.putBytes("devDescrip", value, storLen );
+			Serial.print(" storing devDescrip");
+      printPayload( 0, storLen, value );
+      Serial.print(" len ");Serial.println(storLen);
+		preferences.end();
+    sucessfulyHandledCmd = 6;
+  }
 
 	//servo position control
 	else if(!strncmp(cmd, "angAxis", 7)) {
     uint8_t axis = cmd[7] - '0';
     uint8_t newAngle = atoir_n(&value[valLen-1], valLen);
 		if(axis <= numServos && newAngle <= 180) {
-			servoAngles[axis] = newAngle;
-			servos[axis].write(servoAngles[axis]);
+      uint8_t srvoNum = axToSrvos[axis];
+			servoAngles[srvoNum] = newAngle;
+			servos[srvoNum].write(servoAngles[srvoNum]);
 		}
 		//Serial.println(servoAngles[0]);
 		//Serial.println("angAxis");
-		sucessfulyHandledCmd = 5;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
-	}
-  /*
-	else if(!strncmp(cmd, "left", 4)) {
-		if(servoAngles[1] <= 170) {
-			servoAngles[1] += 10;
-			servos[1].write(servoAngles[1]);
-		}
-		Serial.println(servoAngles[1]);
-		Serial.println("Left");
-		sucessfulyHandledCmd = 6;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
-	}
-	else if(!strncmp(cmd, "right", 5)) {
-		if(servoAngles[1] >= 10) {
-			servoAngles[1] -= 10;
-			servos[1].write(servoAngles[1]);
-		}
-		Serial.println(servoAngles[1]);
-		Serial.println("Right");
 		sucessfulyHandledCmd = 7;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
-	else if(!strncmp(cmd, "down", 4)) {
-		if(servoAngles[0] >= 10) {
-			servoAngles[0] -= 10;
-			servos[0].write(servoAngles[0]);
-		}
-		Serial.println(servoAngles[0]);
-		Serial.println("Down");
-		sucessfulyHandledCmd = 8;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
-	}
-  */
+  
 	else if(!strncmp(cmd, "center", 6)) {
     //for all active servos
     for(uint8_t sNum = 0; sNum < numServos; ++sNum){
@@ -318,9 +303,24 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		//Serial.print(servo1Angle);
 		//Serial.println(servo2Angle);
 		//Serial.println("center");
-		sucessfulyHandledCmd = 9;
+		sucessfulyHandledCmd = 8;
     activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
+
+  else if(!strncmp(cmd, "axSrv", 5)){
+    uint8_t axNum = cmd[5] - '0';
+    if( valLen >= 1 ){
+      uint8_t srvNum = value[0] - '0';
+      if( axNum < MAX_NUM_SERVOS && srvNum < MAX_NUM_SERVOS){
+        preferences.begin("storedVals", false);
+          preferences.putUChar("axSrv"+axNum, srvNum );
+        preferences.end();
+        axToSrvos[axNum] = srvNum;
+        sucessfulyHandledCmd = 9;
+      }
+    }
+  }
+
 	else if(!strncmp(cmd, "Light", 5)){
 		lightLedValue = !lightLedValue;
 		digitalWrite(LightLEDPin, lightLedValue);

@@ -46,7 +46,8 @@ uint8_t numServos = 0;
 #define MAX_NUM_SERVOS 6
 Servo servos[MAX_NUM_SERVOS];
 int servoAngles[MAX_NUM_SERVOS];
-int defaultServoAngles[MAX_NUM_SERVOS] = {90,90,90, 90,90,90};
+int defaultServoAngles[MAX_NUM_SERVOS] = {90,90,90,  90,90,90};
+uint8_t axToSrvos[MAX_NUM_SERVOS]; //mapping of servo to axis
 
 bool hasLight;
 bool hasMagSensor;
@@ -110,6 +111,19 @@ uint8_t mainLoopDelayMillis = 100;
 #include "wifiConnection.h"
 #include "webserver.h"
 
+uint8_t CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( bool * unassignedServos, uint8_t val ){
+  if( unassignedServos[val] ){
+    unassignedServos[val] = false;
+    return val;
+  }
+  for( uint8_t j = 0; j < MAX_NUM_SERVOS; ++j ){
+    if( unassignedServos[j] ){
+      unassignedServos[j] = false;
+      return j;
+    }
+  }
+}
+
 void setup() {
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 
@@ -118,6 +132,13 @@ void setup() {
     numServos = preferences.getUChar( "numServos" );
     hasLight = preferences.getBool( "hasLight" );
     hasMagSensor = preferences.getBool( "hasMagSensor" );
+    //read servo assignments
+    bool unassignedServos[MAX_NUM_SERVOS] = {true,true,true, true,true,true};
+    for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
+      uint8_t val = preferences.getUChar( "axSrvo"+i, MAX_NUM_SERVOS+1 );
+      val = CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( unassignedServos, val );
+      axToSrvos[i] = val;
+    }
   preferences.end();
 
   //setup servos

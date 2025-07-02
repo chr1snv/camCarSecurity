@@ -34,12 +34,12 @@
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(5,1);">CW</button></td>
 			</tr>
 			<tr>
-				<td><input id="angAxis0" type="number" min="0" max="180" step="1" value="90"></input></td>
-				<td><input id="angAxis1" type="number" min="0" max="180" step="1" value="90"></input></td>
-				<td><input id="angAxis2" type="number" min="0" max="180" step="1" value="90"></input></td>
-				<td><input id="angAxis3" type="number" min="0" max="180" step="1" value="90"></input></td>
-				<td><input id="angAxis4" type="number" min="0" max="180" step="1" value="90"></input></td>
-				<td><input id="angAxis5" type="number" min="0" max="180" step="1" value="90"></input></td>
+				<td align="center"><input id="angAxis0" type="range" min="0" max="180" step="1" value="90" oninput="sendAxisDirCmd(0,0)" orient="vertical" style="appearance: slider-vertical"></input></td>
+				<td align="center"><input id="angAxis1" type="range" min="0" max="180" step="1" value="90" oninput="sendAxisDirCmd(1,0)" orient="vertical" style="appearance: slider-vertical"></input></td>
+				<td align="center"><input id="angAxis2" type="range" min="0" max="180" step="1" value="90" oninput="sendAxisDirCmd(2,0)" orient="vertical" style="appearance: slider-vertical"></input></td>
+				<td align="center"><input id="angAxis3" type="range" min="0" max="180" step="1" value="90" oninput="sendAxisDirCmd(3,0)" orient="vertical" style="appearance: slider-vertical"></input></td>
+				<td align="center"><input id="angAxis4" type="range" min="0" max="180" step="1" value="90" oninput="sendAxisDirCmd(4,0)" orient="vertical" style="appearance: slider-vertical"></input></td>
+				<td align="center"><input id="angAxis5" type="range" min="0" max="180" step="1" value="90" oninput="sendAxisDirCmd(5,0)" orient="vertical" style="appearance: slider-vertical"></input></td>
 			</tr>
 			<tr>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(0,-1);">Open</button></td>
@@ -49,10 +49,8 @@
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(4,-1);">Up</button></td>
 				<td align="center"><button class="button" onclick="sendAxisDirCmd(5,-1);">CCW</button></td>
 			</tr>
-			<tr>
-				<td align="center"><button class="button" style="background-color:dimgray; border-radius:10px;" onclick="centerAllServos();">Center All</button></td>
-			</tr>
 		</table>
+		<div align="center"><button class="button" style="background-color:dimgray; border-radius:10px;" onclick="centerAllServos();">Center All</button></div>
 	</div>
 	<table id="alarmControls">
 		<tr>
@@ -213,6 +211,80 @@
 						<td><input id="configNumServos" type="number" min="0" max="6"></input></td>
 						<td><button onclick="sendCmd( 'cfgNumServo', document.getElementById('configNumServos').value )">Set Num Servos</button></td>
 					</tr>
+				</table>
+				<div>
+					<h4 align="center" style="margin:0px">Servo</h4>
+					<table>
+						<tr>
+							<td><h4 style="rotate:90deg; margin:0px">Axis</h4></td>
+							<td>
+							<table id="axSrvoAssocTbl">
+								<tr><th></th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr>
+								<tr>
+									<th>0</th>
+									<td><input id="ax0sv0" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax0sv1" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax0sv2" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax0sv3" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax0sv4" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax0sv5" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+								</tr>
+								<tr>
+									<th>1</th>
+									<td><input id="ax1sv0" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax1sv1" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax1sv2" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax1sv3" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax1sv4" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax1sv5" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+								</tr>
+								<tr>
+									<th>2</th>
+									<td><input id="ax2sv0" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax2sv1" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax2sv2" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax2sv3" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax2sv4" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax2sv5" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+								</tr>
+								<tr>
+									<th>3</th>
+									<td><input id="ax3sv0" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax3sv1" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax3sv2" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax3sv3" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax3sv4" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax3sv5" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+								</tr>
+								<tr>
+									<th>4</th>
+									<td><input id="ax4sv0" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax4sv1" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax4sv2" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax4sv3" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax4sv4" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax4sv5" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+								</tr>
+								<tr>
+									<th>5</th>
+									<td><input id="ax5sv0" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax5sv1" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax5sv2" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax5sv3" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax5sv4" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+									<td><input id="ax5sv5" type="checkbox" oninput="valAxSrvoAssocTbl(this)"></input></td>
+								</tr>
+							</table>
+							</td>
+						</tr>
+					</table>
+				</div>
+				<table>
+					<tr>
+						<td><button onclick="sendAxSrvoAssoc()">Set Ax Srvo Assocs</button></td>
+					</tr>
+				</table>
+				<table>
 					<tr>
 						<td><input id="configHasLight" type="checkbox"></input></td>
 						<td><button onclick="sendConfig('cfgHasLght','configHasLight')">Set Has Light</button></td>
@@ -240,6 +312,8 @@
 		<script>
 		const MAX_STORED_NETWORKS = 10;
 		const MAX_NUM_SERVOS = 6;
+		const MIN_SERVO_ANG = 0;
+		const MAX_SERVO_ANG = 180;
 		
 		function toggleDisp(titleElm, elmId){
 			let elm = document.getElementById(elmId);
@@ -339,9 +413,9 @@
 				continueSendSvrCert( );
 			}
 		}
-		
+
 		let axisAngles = Array(MAX_NUM_SERVOS).fill(90);
-		
+
 		function centerAllServos(){
 			for( let i = 0; i < MAX_NUM_SERVOS; ++i ){
 				axisAngles[i] = 90;
@@ -349,52 +423,79 @@
 			}
 			sendCmd('center')
 		}
-		
+
 		function sendAxisDirCmd(axis, dir){
+			//read the value from the input element
 			let elm = document.getElementById("angAxis"+axis);
 			if( typeof( elm.value ) == "string" )
 				axisAngles[axis] = Math.floor( parseFloat( elm.value ) );
 			else
 				axisAngles[axis] = elm.value;
 
+			//apply optional dir update
 			if( dir > 0 )
 				axisAngles[axis] += 10;
-			else
+			else if( dir < 0 )
 				axisAngles[axis] -= 10;
 
-			if( axisAngles[axis] < 0 )
-				axisAngles[axis] = 0;
-			if( axisAngles[axis] > 180 )
-				axisAngles[axis] = 180;
+			//clamp the value between 
+			if( axisAngles[axis] < MIN_SERVO_ANG )
+				axisAngles[axis] = MIN_SERVO_ANG;
+			if( axisAngles[axis] > MAX_SERVO_ANG )
+				axisAngles[axis] = MAX_SERVO_ANG;
+			//assign the updated value back to the input element
 			elm.value = axisAngles[axis];
+
+			//send the commanded angle to the cloud server
 			sendCmd("angAxis"+axis, axisAngles[axis] );
-			
 		}
 		
+		let srvoAssocElms = Array(MAX_NUM_SERVOS*MAX_NUM_SERVOS);
+		function fillSrvoAssocElms(){
+			if( srvoAssocElms[0] == null ){ //initalize refrences to checkboxes
+				for(let a = 0; a < MAX_NUM_SERVOS; ++a ){ //axis
+					for(let s = 0; s < MAX_NUM_SERVOS; ++s ){ //servo
+						srvoAssocElms[a*MAX_NUM_SERVOS+s] = document.getElementById("ax"+a+"sv"+s);
+					}
+				}
+			}
+		}
+		function valAxSrvoAssocTbl(elm){
+			fillSrvoAssocElms();
+
+			let elmAx = parseInt(elm.id[2]);
+			let elmSv = parseInt(elm.id[5]);
+
+			//if checked clear any other checks in the row/colum
+			if(elm.checked){
+				for( let i = 0; i < MAX_NUM_SERVOS; ++i ){ //clear the row
+					if( i != elmSv )
+						srvoAssocElms[elmAx*MAX_NUM_SERVOS+i].checked = false;
+				}
+				for( let i = 0; i < MAX_NUM_SERVOS; ++i ){ //clear the column
+					if( i != elmAx )
+						srvoAssocElms[i*MAX_NUM_SERVOS+elmSv].checked = false;
+				}
+			}
+		}
+		
+		function sendAxSrvoAssoc(){
+			fillSrvoAssocElms();
+			for( let a = 0; a < MAX_NUM_SERVOS; ++a ){
+				for( let s = 0; s < MAX_NUM_SERVOS; ++s ){ //scan the row and emit the first selected servo for the axis
+					if( srvoAssocElms[a*MAX_NUM_SERVOS+s].checked ){
+						sendCmd("axSrv"+a, s );
+						break;
+					}
+				}
+			}
+		}
+
+		//used to send bool i/o config to the device i.e.
+		//has Light, Alarm, Mic, Speaker, is an UltrasoundSensor etc
 		function sendConfig(cmd, elmName){
 			sendCmd( cmd, document.getElementById(elmName).checked );
 		}
-		
-		/*
-		function sendConfigNumServos(){
-			sendCmd("cfgNumServo", document.getElementById("configNumServos").value );
-		}
-		function sendConfigHasLight(){
-			sendCmd("cfgHasLght", document.getElementById("configHasLight").value );
-		}
-		function sendConfigHasAlarm(){
-			sendCmd("cfgHasAlrm", document.getElementById("configHasAlarm").value );
-		}
-		function sendConfigHasMic(){
-			sendCmd("cfgHasMic", document.getElementById("configHasMic").value );
-		}
-		function sendConfigHasSpeaker(){
-			sendCmd("cfgHasSpkr", document.getElementById("configHasSpkr").value );
-		}
-		function sendConfigIsUltrasoundSensor(){
-			sendCmd("cfgIsUltrasoundSensor", document.getElementById("configIsUltrasoundSensor").value );
-		}
-		*/
 
 		function sendMagThreshold(){
 			sendCmd("magAlrmThrsh", document.getElementById("magThresholdNum").value );
@@ -495,6 +596,8 @@
 			document.getElementById("camResolution").innerText	= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
 			document.getElementById("txPower").innerText		= parseInt(sFBa(a.slice(idx, idx+5))); idx += 5;
 
+			//device name
+
 			let MAX_STORED_NETWORKS = 10;
 			let NETWORK_NAME_LEN = 32;
 
@@ -507,6 +610,7 @@
 				document.getElementById("net"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
 				document.getElementById("pass"+i).value		= strFromByteRange(a, idx, 32); idx += 32;
 			}
+
 
 		}
 		
@@ -644,19 +748,19 @@
 				numLoopsInProgress += 1;
 			}
 		}
-		
+
 		//sendWebsocketServerMessage("hi testing connection from browser to server");
 
 		fillStoredSSIDsTable();
 		numStatusRequests = numStatusRequestsBeforeSettingsRequest; //request settings on start/page load
 		setInterval(MainLoop, 10000); //100ms (10x a second)
 		camRot90(true);
-		
+
 		function begin(){
 			thisCliId = document.getElementById("cliId").innerHTML;
 		}
 		window.addEventListener('load', begin, false);
-		
+
 		/*
 		buf = []
 		function fillStringWithRandomASCII( buf, len){
@@ -678,8 +782,8 @@
 		}
 		fillStringWithRandomASCII( buf, 2);
 		*/
-		
-		
+
+
 		</script>
 	</body>
 </html>
