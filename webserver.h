@@ -53,9 +53,9 @@ uint16_t fillStatusString(char * outStr){
 
 	snprintf( &(outStr[idx]), 2+1,  "% 2u", numServos); idx += 2;
 
-  for( uint8_t i = 0; i < numServos; ++i ){
-    snprintf( &(outStr[idx]), 3+1,  "% 3u",servoAngles[i]); idx += 3;
-  }
+	for( uint8_t i = 0; i < numServos; ++i ){
+		snprintf( &(outStr[idx]), 3+1,  "% 3u",servoAngles[i]); idx += 3;
+	}
 	//memset() //snprintf will set a \0 at end so don't need to memset
 	return idx+1;
 }
@@ -76,7 +76,7 @@ uint16_t fillSettingsString( char * outputStr ){
 	snprintf( &(outputStr[oIdx]), 11+1, "Set" ); oIdx += 11;
 	snprintf( &(outputStr[oIdx]), 6+1, "% 6d", SETTINGS_RESPONSE_LENGTH ); oIdx += 6;
 
-  //fill mag threshold, cam quality, cam resolution, tx power
+	//fill mag threshold, cam quality, cam resolution, tx power
 	snprintf( &(outputStr[oIdx]),  5, "%i\n", MAG_ALARM_DELTA_THRESHOLD); oIdx += 5;
 	sensor_t * s = esp_camera_sensor_get();
 	snprintf( &(outputStr[oIdx]),  5, "%i\n", s->status.quality); oIdx += 5;
@@ -85,8 +85,8 @@ uint16_t fillSettingsString( char * outputStr ){
 	esp_wifi_get_max_tx_power(&txPower);
 	snprintf( &(outputStr[oIdx]), 5, "%i\n", txPower); oIdx += 5;
 
-  //fill device name
-  //preferences.getBytes("devDescrip", &(outputStr[oIdx], NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
+	//fill device name
+	//preferences.getBytes("devDescrip", &(outputStr[oIdx], NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 
 	//oIdx = 37 (11+6+5+5+5) + 32 = 69
 
@@ -102,7 +102,7 @@ uint16_t fillSettingsString( char * outputStr ){
 			memcpy( &(outputStr[oIdx]), networkInfo, NETWORK_NAME_LEN ); oIdx += NETWORK_NAME_LEN;
 		}
 
-    //oIdx = 357 oIdx (37) += ( MAX_NUM_SVRS (10) * NETWORK_NAME_LEN (32) ) (320) = 389
+		//oIdx = 357 oIdx (37) += ( MAX_NUM_SVRS (10) * NETWORK_NAME_LEN (32) ) (320) = 389
 
 		//networks and passwords
 		//Serial.println("svrUrl");
@@ -135,7 +135,7 @@ uint8_t fillPktHdr(char * outputBytes){
 	uint8_t idx = 0;
 	snprintf( &(outputBytes[idx]), 3+1, "%3i", sendPktNum ); idx += 3;
 	snprintf( &(outputBytes[idx]), 4+1, "% 4d", devId ); idx += 4;
-  //fill header
+	//fill header
 	outputBytes[idx] = '1'; idx += 1;
 	outputBytes[idx] = 'd'; idx += 1;
 	sendPktNum++; //rollover at 255 because of uint8_t data type
@@ -267,59 +267,70 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		sucessfulyHandledCmd = 5;
 	}
 
-  else if(!strncmp(cmd, "devDescrip", 10)){
-    preferences.begin("storedVals", false);
+	else if(!strncmp(cmd, "devDescrip", 10)){
+		preferences.begin("storedVals", false);
 			uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
 			preferences.putBytes("devDescrip", value, storLen );
 			Serial.print(" storing devDescrip");
-      printPayload( 0, storLen, value );
-      Serial.print(" len ");Serial.println(storLen);
+			printPayload( 0, storLen, value );
+			Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
-    sucessfulyHandledCmd = 6;
-  }
+		sucessfulyHandledCmd = 6;
+	}
 
 	//servo position control
 	else if(!strncmp(cmd, "angAxis", 7)) {
-    uint8_t axis = cmd[7] - '0';
-    uint8_t newAngle = atoir_n(&value[valLen-1], valLen);
+		uint8_t axis = cmd[7] - '0';
+		uint8_t newAngle = atoir_n(&value[valLen-1], valLen);
 		if(axis <= numServos && newAngle <= 180) {
-      uint8_t srvoNum = axToSrvos[axis];
-			servoAngles[srvoNum] = newAngle;
-			servos[srvoNum].write(servoAngles[srvoNum]);
+			uint8_t srvosForAxis = axToSrvos[axis];
+			//Serial.print( "axis " ); Serial.print( axis );
+			//Serial.print( " angle " ); Serial.print( newAngle );
+			//Serial.print( " srvosForAxis " ); Serial.print( srvosForAxis );
+			for( uint8_t srvoNum = 0; srvoNum < MAX_NUM_SERVOS; ++srvoNum ){
+				if( srvosForAxis & 1 ){
+					//Serial.print( " actuatingAxis " ); Serial.print( srvoNum );
+					servoAngles[srvoNum] = newAngle;
+					servos[srvoNum].write(servoAngles[srvoNum]);
+				}
+				srvosForAxis = srvosForAxis >> 1;
+			}
 		}
 		//Serial.println(servoAngles[0]);
 		//Serial.println("angAxis");
 		sucessfulyHandledCmd = 7;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+		activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
-  
+	
 	else if(!strncmp(cmd, "center", 6)) {
-    //for all active servos
-    for(uint8_t sNum = 0; sNum < numServos; ++sNum){
-      servoAngles[sNum] = defaultServoAngles[sNum];
-      servos[sNum].write(servoAngles[sNum]); //start at default angle
-    }
+		//for all active servos
+		for(uint8_t sNum = 0; sNum < numServos; ++sNum){
+			servoAngles[sNum] = defaultServoAngles[sNum];
+			servos[sNum].write(servoAngles[sNum]); //start at default angle
+		}
 		
 		//Serial.print(servo1Angle);
 		//Serial.println(servo2Angle);
 		//Serial.println("center");
 		sucessfulyHandledCmd = 8;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+		activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 
-  else if(!strncmp(cmd, "axSrv", 5)){
-    uint8_t axNum = cmd[5] - '0';
-    if( valLen >= 1 ){
-      uint8_t srvNum = value[0] - '0';
-      if( axNum < MAX_NUM_SERVOS && srvNum < MAX_NUM_SERVOS){
-        preferences.begin("storedVals", false);
-          preferences.putUChar("axSrv"+axNum, srvNum );
-        preferences.end();
-        axToSrvos[axNum] = srvNum;
-        sucessfulyHandledCmd = 9;
-      }
-    }
-  }
+	else if(!strncmp(cmd, "axSrv", 5)){
+		uint8_t axNum = cmd[5] - '0';
+		if( valLen >= 1 ){
+			uint8_t srvsForAx = atoir_n(&value[valLen-1], valLen);
+			if( axNum < MAX_NUM_SERVOS ){
+				Serial.print( "axNum "  ); Serial.print( axNum );
+				Serial.print( " srvsForAx " ); Serial.print( srvsForAx );
+				preferences.begin("storedVals", false);
+					preferences.putUChar("axSrv"+axNum, srvsForAx );
+				preferences.end();
+				axToSrvos[axNum] = srvsForAx;
+				sucessfulyHandledCmd = 9;
+			}
+		}
+	}
 
 	else if(!strncmp(cmd, "Light", 5)){
 		lightLedValue = !lightLedValue;
@@ -327,19 +338,19 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		Serial.print("Light");
 		Serial.println(lightLedValue);
 		sucessfulyHandledCmd = 10;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+		activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "ArmAlarm", 8)){
 		ArmAlarm(true);
 		Serial.println("ArmAlarm");
 		sucessfulyHandledCmd = 11;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+		activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "DisarmAlarm", 11)){
 		ArmAlarm(false);
 		Serial.println("DisarmAlarm");
 		sucessfulyHandledCmd = 12;
-    activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
+		activelyCommanded = NUMLOOPS_TO_STAY_ACTIVE_AFTER_COMMAND;
 	}
 	else if(!strncmp(cmd, "magAlrThrsh", 11)){
 		MAG_ALARM_DELTA_THRESHOLD = atoir_n(&value[valLen-1], valLen);
@@ -351,7 +362,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	}
 	else if(!strncmp(cmd, "svrUrl", 6)){
 		preferences.begin("storedVals", false);
-      uint8_t urlNum = cmd[6] - '0';
+			uint8_t urlNum = cmd[6] - '0';
 			uint16_t storLen = min( valLen, (uint16_t)MAX_SVR_URL_LEN );
 			preferences.putBytes("svrUrl"+urlNum, value, storLen );
 			Serial.print(" storing svrUrl");Serial.print(urlNum);Serial.print(" len ");Serial.println(storLen);
@@ -375,8 +386,8 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 			snprintf( storedPrefKey, 10+1,"svrCert%i_%i", certNum,certPartIdx );
 			preferences.putBytes( storedPrefKey, value, storLen );
 			Serial.print("storing svrCert "); Serial.print(certNum); 
-      Serial.print("_"); Serial.print(certPartIdx); 
-      Serial.print(" len ");Serial.println(storLen);
+			Serial.print("_"); Serial.print(certPartIdx); 
+			Serial.print(" len ");Serial.println(storLen);
 		preferences.end();
 		sucessfulyHandledCmd = 17;
 	}
@@ -407,14 +418,14 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if(!strncmp(cmd, "getSettings", 11)){
 		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
 		pktIdx += fillSettingsString(&lastCsiInfoStr[pktIdx]);
-    Serial.print("sendingSettings ");Serial.println(pktIdx);
+		Serial.print("sendingSettings ");Serial.println(pktIdx);
 		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
 		sucessfulyHandledCmd = 20;
 	}
 	else if(!strncmp(cmd, "getStatus", 9)){
 		uint16_t pktIdx = fillPktHdr(lastCsiInfoStr);
 		pktIdx += fillStatusString(&lastCsiInfoStr[pktIdx]);
-    Serial.print("sendingStatus ");Serial.println(pktIdx);
+		Serial.print("sendingStatus ");Serial.println(pktIdx);
 		esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), pktIdx, portMAX_DELAY);
 		sucessfulyHandledCmd = 22;
 	}
@@ -422,15 +433,15 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 	else if(!strncmp(cmd, "cfgNumServo", 10)){
 		
 			uint8_t readNumServos = atoir_n(value, valLen);
-      Serial.print("readNumServos "); Serial.println(readNumServos);
+			Serial.print("readNumServos "); Serial.println(readNumServos);
 			if( readNumServos <= MAX_NUM_SERVOS && readNumServos >= 0 ){
 				numServos = readNumServos;
 				preferences.begin("storedVals", false);
 				preferences.putUChar("numServos", numServos );
 				Serial.print(" storing numServos");Serial.println(numServos);
 				preferences.end();
-        initServos();
-        sucessfulyHandledCmd = 23;
+				initServos();
+				sucessfulyHandledCmd = 23;
 			}
 
 	}
@@ -450,7 +461,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		preferences.end();
 		sucessfulyHandledCmd = 25;
 	}
-  else if(!strncmp(cmd, "cfgHasMic", 9)){
+	else if(!strncmp(cmd, "cfgHasMic", 9)){
 		preferences.begin("storedVals", false);
 			bool hasMic = atoir_n(value, valLen);
 			preferences.putBool("hasMic", hasMic );
@@ -458,7 +469,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		preferences.end();
 		sucessfulyHandledCmd = 26;
 	}
-  else if(!strncmp(cmd, "cfgHasSpkr", 10)){
+	else if(!strncmp(cmd, "cfgHasSpkr", 10)){
 		preferences.begin("storedVals", false);
 			bool hasSpkr = atoir_n(value, valLen);
 			preferences.putBool("hasSpkr", hasSpkr );
@@ -466,7 +477,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		preferences.end();
 		sucessfulyHandledCmd = 27;
 	}
-  else if(!strncmp(cmd, "cfgIsUltSnd", 11)){
+	else if(!strncmp(cmd, "cfgIsUltSnd", 11)){
 		preferences.begin("storedVals", false);
 			bool isUltSnd = atoir_n(value, valLen);
 			preferences.putBool("isUltSnd", isUltSnd );
@@ -499,7 +510,7 @@ void readSvrCert(uint8_t num, uint16_t & length, char * svrCert ){
 		}
 		svrCert[length] = '\0';
 	preferences.end();
-  //printPayload( 0, 50, svrCert );
+	//printPayload( 0, 50, svrCert );
 }
 
 #include "webSocketClient.h"
@@ -598,12 +609,12 @@ void ReadNextSvrInfo(){
 	preferences.end();
 }
 void PostAndFetchDataFromCloudServer(PostType postType){
-  
+	
 		if(mainLoopsSinceWebSockStartedConnecting > 100  || svrIdx >= MAX_NUM_SVRS){
 			if(webSockClient != NULL ){
 				Serial.println("freeing websocket client");
 				esp_websocket_client_stop(webSockClient);
-    		esp_websocket_client_destroy(webSockClient);
+				esp_websocket_client_destroy(webSockClient);
 				
 				Serial.print("finished freeing webSockClient "); Serial.println((int)webSockClient);
 				webSockClient = NULL;
@@ -654,23 +665,23 @@ void PostAndFetchDataFromCloudServer(PostType postType){
 			};
 			webSockClient = esp_websocket_client_init(&ws_cfg);
 			Serial.println( "webSock cli inited");
-			  esp_err_t wEvts = esp_websocket_register_events(webSockClient, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void *)webSockClient);
-			  Serial.print( "webSock reg " ); Serial.println( wEvts );
-			  wEvts = esp_websocket_client_start(webSockClient);
+				esp_err_t wEvts = esp_websocket_register_events(webSockClient, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void *)webSockClient);
+				Serial.print( "webSock reg " ); Serial.println( wEvts );
+				wEvts = esp_websocket_client_start(webSockClient);
 			Serial.print("free heap "); Serial.print(esp_get_free_heap_size());
-			  Serial.print( "webSock start " ); Serial.println( wEvts );
+				Serial.print( "webSock start " ); Serial.println( wEvts );
 
 		}
 	}
 
 	if( esp_websocket_client_is_connected(webSockClient) ){
-    //send a message to server 
+		//send a message to server 
 		Serial.print( " to Wss " );
 		int httpResponseCode;
 		uint8_t hdrOffset = fillPktHdr(lastCsiInfoStr);
 		if( postType == DEV_STATUS ){
 			uint16_t statLen = fillStatusString(&lastCsiInfoStr[hdrOffset]);
-      //printPayload(hdrOffset, hdrOffset+statLen, lastCsiInfoStr );
+			//printPayload(hdrOffset, hdrOffset+statLen, lastCsiInfoStr );
 			httpResponseCode = esp_websocket_client_send_bin(webSockClient, (const char *)&(lastCsiInfoStr[0]), hdrOffset+statLen, portMAX_DELAY);
 		}else if( postType == DEV_SETTINGS ){
 			uint16_t setLen = fillSettingsString(&lastCsiInfoStr[hdrOffset]);

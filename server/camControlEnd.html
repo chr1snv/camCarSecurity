@@ -468,10 +468,12 @@
 
 			//if checked clear any other checks in the row/colum
 			if(elm.checked){
+				/* //commented out to allow multiple servos to actuate an axis
 				for( let i = 0; i < MAX_NUM_SERVOS; ++i ){ //clear the row
 					if( i != elmSv )
 						srvoAssocElms[elmAx*MAX_NUM_SERVOS+i].checked = false;
 				}
+				*/
 				for( let i = 0; i < MAX_NUM_SERVOS; ++i ){ //clear the column
 					if( i != elmAx )
 						srvoAssocElms[i*MAX_NUM_SERVOS+elmSv].checked = false;
@@ -482,12 +484,15 @@
 		function sendAxSrvoAssoc(){
 			fillSrvoAssocElms();
 			for( let a = 0; a < MAX_NUM_SERVOS; ++a ){
-				for( let s = 0; s < MAX_NUM_SERVOS; ++s ){ //scan the row and emit the first selected servo for the axis
+				let rowVals = 0;
+				for( let s = MAX_NUM_SERVOS-1; s >= 0; --s ){ //scan the row (selected servos) and emit a bit mask of selected servos for the axis
 					if( srvoAssocElms[a*MAX_NUM_SERVOS+s].checked ){
-						sendCmd("axSrv"+a, s );
-						break;
+						rowVals |= 1;
 					}
+					if( s > 0 ) //don't shift on last servo
+						rowVals <<= 1;
 				}
+				sendCmd("axSrv"+a, rowVals );
 			}
 		}
 

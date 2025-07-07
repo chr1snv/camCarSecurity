@@ -35,13 +35,13 @@ Preferences preferences;
 
 #include <ESP32Servo.h>
 const uint8_t ServoOutputPins[] = { 
-    12/*14*/,
-    13/*15*/,
-    15,
-    14,
-    2,
-    4
-  };
+		12/*14*/,
+		13/*15*/,
+		15,
+		14,
+		2,
+		4
+	};
 uint8_t numServos = 0;
 #define MAX_NUM_SERVOS 6
 Servo servos[MAX_NUM_SERVOS];
@@ -54,16 +54,16 @@ bool hasMagSensor;
 
 //init servos //to be used after number of servos changes
 void initServos(){
-  for(uint8_t sNum = 0; sNum < MAX_NUM_SERVOS; ++sNum){
-    servos[sNum].detach();
-  }
-  Serial.print( "setting up " ); Serial.print( numServos ); Serial.println( " num servos" );
-  for(uint8_t sNum = 0; sNum < numServos; ++sNum){
-	  servos[sNum].setPeriodHertz(50);    // standard 50 hz servo
-	  servos[sNum].attach( ServoOutputPins[sNum] ); //defaults to 500, 2500 microseconds //, 1000, 2000);
-    servoAngles[sNum] = defaultServoAngles[sNum];
-	  servos[sNum].write(servoAngles[sNum]); //start at default angle
-  }
+	for(uint8_t sNum = 0; sNum < MAX_NUM_SERVOS; ++sNum){
+		servos[sNum].detach();
+	}
+	Serial.print( "setting up " ); Serial.print( numServos ); Serial.println( " num servos" );
+	for(uint8_t sNum = 0; sNum < numServos; ++sNum){
+		servos[sNum].setPeriodHertz(50);    // standard 50 hz servo
+		servos[sNum].attach( ServoOutputPins[sNum] ); //defaults to 500, 2500 microseconds //, 1000, 2000);
+		servoAngles[sNum] = defaultServoAngles[sNum];
+		servos[sNum].write(servoAngles[sNum]); //start at default angle
+	}
 }
 
 #define ALARM_OUTPUT_PIN 2 //pull down strapping pin
@@ -112,49 +112,49 @@ uint8_t mainLoopDelayMillis = 100;
 #include "webserver.h"
 
 uint8_t CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( bool * unassignedServos, uint8_t val ){
-  if( unassignedServos[val] ){
-    unassignedServos[val] = false;
-    return val;
-  }
-  for( uint8_t j = 0; j < MAX_NUM_SERVOS; ++j ){
-    if( unassignedServos[j] ){
-      unassignedServos[j] = false;
-      return j;
-    }
-  }
+	if( unassignedServos[val] ){
+		unassignedServos[val] = false;
+		return val;
+	}
+	for( uint8_t j = 0; j < MAX_NUM_SERVOS; ++j ){
+		if( unassignedServos[j] ){
+			unassignedServos[j] = false;
+			return j;
+		}
+	}
 }
 
 void setup() {
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 
-  //read config
-  preferences.begin("storedVals", true);
-    numServos = preferences.getUChar( "numServos" );
-    hasLight = preferences.getBool( "hasLight" );
-    hasMagSensor = preferences.getBool( "hasMagSensor" );
-    //read servo assignments
-    bool unassignedServos[MAX_NUM_SERVOS] = {true,true,true, true,true,true};
-    for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
-      uint8_t val = preferences.getUChar( "axSrv"+i, MAX_NUM_SERVOS+1 );
-      val = CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( unassignedServos, val );
-      axToSrvos[i] = val;
-    }
-  preferences.end();
+	//read config
+	preferences.begin("storedVals", true);
+		numServos = preferences.getUChar( "numServos" );
+		hasLight = preferences.getBool( "hasLight" );
+		hasMagSensor = preferences.getBool( "hasMagSensor" );
+		//read servo assignments
+		bool unassignedServos[MAX_NUM_SERVOS] = {true,true,true, true,true,true};
+		for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
+			uint8_t val = preferences.getUChar( "axSrv"+i, MAX_NUM_SERVOS+1 );
+			val = CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( unassignedServos, val );
+			axToSrvos[i] = val;
+		}
+	preferences.end();
 
-  //setup servos
+	//setup servos
 	initServos();
 
 	//init lights
-  if( hasLight ){
-	  pinMode(LightLEDPin, OUTPUT);
-	  digitalWrite(redLEDPin, LOW);
-  }
+	if( hasLight ){
+		pinMode(LightLEDPin, OUTPUT);
+		digitalWrite(redLEDPin, LOW);
+	}
 
 	//initalize sensor communications
-  if( hasMagSensor ){
-	  ori_init();
-    ArmAlarm(false); //set the siren output low
-  }
+	if( hasMagSensor ){
+		ori_init();
+		ArmAlarm(false); //set the siren output low
+	}
 	temp_init();
 	camera_init();
 
@@ -173,7 +173,7 @@ void setup() {
 	Serial.println(ESP.getFreePsram());
 
 	//turn on status led
-  pinMode(redLEDPin, OUTPUT);
+	pinMode(redLEDPin, OUTPUT);
 	digitalWrite(redLEDPin, HIGH);
 
 	//esp_wifi_init();
@@ -202,19 +202,19 @@ void loop() {
 		mainLoopsUntilPrintStatus = MAIN_LOOPS_BTWN_STAT_PRINTS;
 		uint8_t sNum = WiFi.softAPgetStationNum(); //print the number of connected clients (other esp32's)
 		Serial.print("nCli ");
-    Serial.print(sNum);
+		Serial.print(sNum);
 		Serial.print(" mLoopsSinceWSConec ");
-    Serial.println(mainLoopsSinceWebSockStartedConnecting);
-    char loopsSinceConnectStr[16];
-    uint8_t lscsLen = snprintf( loopsSinceConnectStr, 16, " swc %i  ", mainLoopsSinceWebSockStartedConnecting );
-    queueStringForMorseLedOutput(loopsSinceConnectStr, lscsLen );
+		Serial.println(mainLoopsSinceWebSockStartedConnecting);
+		char loopsSinceConnectStr[16];
+		uint8_t lscsLen = snprintf( loopsSinceConnectStr, 16, " swc %i  ", mainLoopsSinceWebSockStartedConnecting );
+		queueStringForMorseLedOutput(loopsSinceConnectStr, lscsLen );
 	}
 
 	//read sensors
 	temp_sense();
 	sense_wifi_rssi();
-  if( hasMagSensor )
-	  ori_sense();
+	if( hasMagSensor )
+		ori_sense();
 
 	//check if alarm conditions met
 	if( alarmArmed ){
@@ -234,11 +234,11 @@ void loop() {
 			}
 		}
 		if(sendData){
-      if( activelyCommanded > 0 ) //only send when commanded to save bandwidth
-			  PostAndFetchDataFromCloudServer(IMAGE);  //send image
+			if( activelyCommanded > 0 ) //only send when commanded to save bandwidth
+				PostAndFetchDataFromCloudServer(IMAGE);  //send image
 			PostAndFetchDataFromCloudServer(DEV_STATUS); //send status
 		}
-    --activelyCommanded;
+		--activelyCommanded;
 
 		doCommandsInRecievedData(payloadLen, payload);
 
@@ -248,7 +248,7 @@ void loop() {
 		Serial.print("."); //print a dot while not connected to an ap for uplink
 	}
 	
-  morseOutputLedUpdate( redLEDPin, true );
+	morseOutputLedUpdate( redLEDPin, true );
 
 	delay(mainLoopDelayMillis);
 }

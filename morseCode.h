@@ -16,42 +16,42 @@ typedef struct{
 
 #define MORSECHARS_LEN 36
 MorseCharacter MorseChars[MORSECHARS_LEN] = {
-  { .lenSymbs = 2, .symbs = {dit, daaaaaaah} },																					//A // 0
-  { .lenSymbs = 4, .symbs = {daaaaaaah, dit, dit, dit} },																//B // 1
-  { .lenSymbs = 4, .symbs = {daaaaaaah, dit, daaaaaaah, dit} },													//C // 2
-  { .lenSymbs = 3, .symbs = {daaaaaaah, dit, dit} },																		//D // 3
-  { .lenSymbs = 1, .symbs = {dit} },																										//E // 4
-  { .lenSymbs = 4, .symbs = {dit, dit, daaaaaaah, dit} },																//F // 5
-  { .lenSymbs = 3, .symbs = {daaaaaaah, daaaaaaah, dit} },															//G // 6
-  { .lenSymbs = 4, .symbs = {dit, dit, dit, dit} },																			//H // 7
-  { .lenSymbs = 2, .symbs = {dit, dit} },																								//I // 8
-  { .lenSymbs = 4, .symbs = {dit, daaaaaaah, daaaaaaah, daaaaaaah} },										//J // 9
-  { .lenSymbs = 3, .symbs = {daaaaaaah, dit, daaaaaaah} },															//K //10
-  { .lenSymbs = 4, .symbs = {dit, daaaaaaah, dit, dit} },																//L //11
-  { .lenSymbs = 2, .symbs = {daaaaaaah, daaaaaaah} },																		//M //12
-  { .lenSymbs = 2, .symbs = {daaaaaaah, dit} },																					//N //13
-  { .lenSymbs = 3, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah} },												//O //14
-  { .lenSymbs = 4, .symbs = {dit, daaaaaaah, daaaaaaah, dit} },													//P //15
-  { .lenSymbs = 4, .symbs = {daaaaaaah, daaaaaaah, dit, daaaaaaah} },										//Q //16
-  { .lenSymbs = 3, .symbs = {dit, daaaaaaah, dit} },																		//R //17
-  { .lenSymbs = 3, .symbs = {dit, dit, dit} },																					//S //18
-  { .lenSymbs = 1, .symbs = {daaaaaaah} },																							//T //19
-  { .lenSymbs = 3, .symbs = {dit, dit, daaaaaaah} },																		//U //20
-  { .lenSymbs = 4, .symbs = {dit, dit, dit, daaaaaaah} },																//V //21
-  { .lenSymbs = 3, .symbs = {dit, daaaaaaah, daaaaaaah} },															//W //22
-  { .lenSymbs = 4, .symbs = {daaaaaaah, dit, dit, daaaaaaah} },													//X //23
-  { .lenSymbs = 4, .symbs = {daaaaaaah, dit, daaaaaaah, daaaaaaah} },										//Y //24
-  { .lenSymbs = 4, .symbs = {daaaaaaah, daaaaaaah, dit, dit} },													//Z	//25
+	{ .lenSymbs = 2, .symbs = {dit, daaaaaaah} },																					//A // 0
+	{ .lenSymbs = 4, .symbs = {daaaaaaah, dit, dit, dit} },																//B // 1
+	{ .lenSymbs = 4, .symbs = {daaaaaaah, dit, daaaaaaah, dit} },													//C // 2
+	{ .lenSymbs = 3, .symbs = {daaaaaaah, dit, dit} },																		//D // 3
+	{ .lenSymbs = 1, .symbs = {dit} },																										//E // 4
+	{ .lenSymbs = 4, .symbs = {dit, dit, daaaaaaah, dit} },																//F // 5
+	{ .lenSymbs = 3, .symbs = {daaaaaaah, daaaaaaah, dit} },															//G // 6
+	{ .lenSymbs = 4, .symbs = {dit, dit, dit, dit} },																			//H // 7
+	{ .lenSymbs = 2, .symbs = {dit, dit} },																								//I // 8
+	{ .lenSymbs = 4, .symbs = {dit, daaaaaaah, daaaaaaah, daaaaaaah} },										//J // 9
+	{ .lenSymbs = 3, .symbs = {daaaaaaah, dit, daaaaaaah} },															//K //10
+	{ .lenSymbs = 4, .symbs = {dit, daaaaaaah, dit, dit} },																//L //11
+	{ .lenSymbs = 2, .symbs = {daaaaaaah, daaaaaaah} },																		//M //12
+	{ .lenSymbs = 2, .symbs = {daaaaaaah, dit} },																					//N //13
+	{ .lenSymbs = 3, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah} },												//O //14
+	{ .lenSymbs = 4, .symbs = {dit, daaaaaaah, daaaaaaah, dit} },													//P //15
+	{ .lenSymbs = 4, .symbs = {daaaaaaah, daaaaaaah, dit, daaaaaaah} },										//Q //16
+	{ .lenSymbs = 3, .symbs = {dit, daaaaaaah, dit} },																		//R //17
+	{ .lenSymbs = 3, .symbs = {dit, dit, dit} },																					//S //18
+	{ .lenSymbs = 1, .symbs = {daaaaaaah} },																							//T //19
+	{ .lenSymbs = 3, .symbs = {dit, dit, daaaaaaah} },																		//U //20
+	{ .lenSymbs = 4, .symbs = {dit, dit, dit, daaaaaaah} },																//V //21
+	{ .lenSymbs = 3, .symbs = {dit, daaaaaaah, daaaaaaah} },															//W //22
+	{ .lenSymbs = 4, .symbs = {daaaaaaah, dit, dit, daaaaaaah} },													//X //23
+	{ .lenSymbs = 4, .symbs = {daaaaaaah, dit, daaaaaaah, daaaaaaah} },										//Y //24
+	{ .lenSymbs = 4, .symbs = {daaaaaaah, daaaaaaah, dit, dit} },													//Z	//25
 	{ .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah} }, 	//0 //26
-  { .lenSymbs = 5, .symbs = {dit, daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah} },				//1 //27
-  { .lenSymbs = 5, .symbs = {dit, daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah} },	 			//2 //28
-  { .lenSymbs = 5, .symbs = {dit, dit, dit, daaaaaaah, daaaaaaah} }, 										//3 //29
-  { .lenSymbs = 5, .symbs = {dit, dit, dit, dit, daaaaaaah} },	 												//4 //30
-  { .lenSymbs = 5, .symbs = {dit, dit, dit, dit, dit} },		 														//5 //31
-  { .lenSymbs = 5, .symbs = {daaaaaaah, dit, dit, dit, dit} },	  											//6 //32
-  { .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, dit, dit, dit} },	  								//7 //33
-  { .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah, dit, dit} },	  					//8 //34
-  { .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah, dit} }		  		//9 //35
+	{ .lenSymbs = 5, .symbs = {dit, daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah} },				//1 //27
+	{ .lenSymbs = 5, .symbs = {dit, daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah} },	 			//2 //28
+	{ .lenSymbs = 5, .symbs = {dit, dit, dit, daaaaaaah, daaaaaaah} }, 										//3 //29
+	{ .lenSymbs = 5, .symbs = {dit, dit, dit, dit, daaaaaaah} },	 												//4 //30
+	{ .lenSymbs = 5, .symbs = {dit, dit, dit, dit, dit} },		 														//5 //31
+	{ .lenSymbs = 5, .symbs = {daaaaaaah, dit, dit, dit, dit} },	  											//6 //32
+	{ .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, dit, dit, dit} },	  								//7 //33
+	{ .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah, dit, dit} },	  					//8 //34
+	{ .lenSymbs = 5, .symbs = {daaaaaaah, daaaaaaah, daaaaaaah, daaaaaaah, dit} }		  		//9 //35
 };
 
 
@@ -176,10 +176,10 @@ void morseOutputLedUpdate( uint8_t mOutputPin, bool invertOutput=false ){
 		}
 	}
 
-  if( invertOutput )
-	  digitalWrite( mOutputPin, !outputState );
-  else
-    digitalWrite( mOutputPin, outputState );
+	if( invertOutput )
+		digitalWrite( mOutputPin, !outputState );
+	else
+		digitalWrite( mOutputPin, outputState );
 
 	
 	if( outputSignalIdx >= mCharLen+3 ){ //past the end of the character signals + (intra character space)
@@ -188,8 +188,8 @@ void morseOutputLedUpdate( uint8_t mOutputPin, bool invertOutput=false ){
 		morseOutBuffIdx += 1;
 		if( morseOutBuffIdx >= MORSE_OUT_BUFF_LEN )
 			morseOutBuffIdx = 0;
-    c = morseOutputBuffer[morseOutBuffIdx];
-    Serial.print("m");Serial.print((uint8_t)c);Serial.print(":");Serial.println(morseIdxToAscii(c));
+		c = morseOutputBuffer[morseOutBuffIdx];
+		Serial.print("m");Serial.print((uint8_t)c);Serial.print(":");Serial.println(morseIdxToAscii(c));
 	}
 
 /*
