@@ -59,8 +59,11 @@ async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
 		datLen = dInf[1]
 		dat = dInf[2]
 		sendBytes += rPadStr(11, datType) + lPadStr(6, str(datLen)) + dat
-	await wSocket.send( sendHdr + str(len(datInfoArr)).encode('utf-8') + 's'.encode('utf-8') + sendBytes )
-	pktNum += 1
+	try:
+		await wSocket.send( sendHdr + str(len(datInfoArr)).encode('utf-8') + 's'.encode('utf-8') + sendBytes )
+		pktNum += 1
+	except Exception as e:
+		print("sendPkt error: %s" % str(e) )
 	return pktNum
 
 def curMillis():
@@ -70,6 +73,8 @@ def curMillis():
 class Device:
 
 	def __init__(self):
+	
+		self.cmds = [] #pending commands to send to the device
 
 		self.devId = -1
 
@@ -120,48 +125,11 @@ class Device:
 		self.postStatus = postStr
 		self.lastStatusTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
 
-		self.alarmArmed        = postStr[-80:-75]
-		self.magAX             = postStr[-75:-70]
-		self.magAY             = postStr[-70:-65]
-		self.magAZ             = postStr[-65:-60]
-
-		self.servo1Angle       = postStr[-60:-55]
-		self.servo2Angle       = postStr[-55:-50]
-
-		self.staRssi           = postStr[-50:-45]
-		self.lastTemperature   = postStr[-45:-40]
-		self.magX              = postStr[-40:-35]
-		self.magY              = postStr[-35:-30]
-		self.magZ              = postStr[-30:-25]
-
-		self.magHeading        = postStr[-25:-15]
-		self.magAlarmDiff      = postStr[-15:-10]
-		self.magAlarmTriggered = postStr[-10:-5]
-		self.alarmOutput       = postStr[-5:]
-		
-		#print( "alarmArmed " + self.alarmArmed )
-		#print( "magAX " + self.magAX )
-		#print( "magAY " + self.magAY )
-		#print( "magAZ " + self.magAZ )
-		
-		#print( "servo1Angle " + self.servo1Angle )
-		#print( "servo2Angle " + self.servo2Angle )
-		
-		#print( "staRssi " + self.staRssi )
-		#print( "lastTemperature " + self.lastTemperature )
-		#print( "magX " + self.magX )
-		#print( "magY " + self.magY )
-		#print( "magZ " + self.magZ )
-		
-		#print( "magHeading " + self.magHeading )
-		#print( "magAlarmDiff " + self.magAlarmDiff )
-		#print( "magAlarmTriggered " + self.magAlarmTriggered )
-		#print( "alarmOutput " + self.alarmOutput )
-
 	def fillSettings(self, datStr, datStrLen ):
 		self.lastSettings = datStr
 		self.lastSettingsLen = datStrLen
 		self.lastSettingsTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+		self.description = datStr[37:69]
 
 	def fillImage(self, datStr, datStrLen):
 		#print( "last image len %i datStrLen %i " % (len(datStr), datStrLen )  )
@@ -274,11 +242,8 @@ async def logoutClient(client):
 	del activeClientLogins[login[LOGIN_AUTHKEY_IDX]]
 
 
-#pending commands
-cmds = []
 
-def GetCommandListBytes():
-	global cmds
+def GetCommandListBytes(cmds):
 	#output = io.BytesIO()
 	numCmdsToSend = min(9, len(cmds))
 	#output.write( str(numCmdsToSend).encode('utf-8') ) #number of commands
@@ -294,7 +259,8 @@ def GetCommandListBytes():
 		dat = (cmd[1])
 		#output.write( dat )
 		retArr.append( (cmdPart, len(dat), dat) )
-	cmds = cmds[numCmdsToSend:] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
+	#in python "assigning something to elements of that list, will change the original list ( reason for [:] (selection of all elements of the list))"
+	cmds[:] = cmds[numCmdsToSend:] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
 	#outBytes = output.getvalue()#.encode('utf-8')
 	#print( 'sending Cmds %s' % outBytes )
 	return retArr#outBytes
@@ -394,6 +360,8 @@ async def websocketHandler(websocket):
 		#print( "pktIdx %i devOrCliId %s numCmd %i fromType %c" % (pktIdx, devOrCliId, numCmd, fromDorC) )
 		mIdx += 1
 		
+		deviceWithNewCmds = None
+		
 		pktLoginUname = ''
 		pktAuth = ''
 		while cmdIdx < numCmd:
@@ -416,7 +384,7 @@ async def websocketHandler(websocket):
 				if datType.startswith(b"Stat"):
 					device.fillValues( datStr ) #read the status data in from device
 					#respond with queued commands
-					cmdDatArr = GetCommandListBytes()
+					cmdDatArr = GetCommandListBytes(device.cmds)
 					#print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
 					await device.send( svrDevId, cmdDatArr )
 					lastStatTimeStr = str(device.lastStatusTime).encode('utf-8')
@@ -509,10 +477,10 @@ async def websocketHandler(websocket):
 							await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(timeStr), timeStr)] )
 						elif datType.startswith(b'settings'):
 							#setLen = str(len(device.postSettings)).encode('utf-8')
-							lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
 							print( 'req settings from dev' )
 							await device.send( svrDevId, [('getSettings', 0, b'')] )
 							print( 'sending last settings to browser' )
+							lastSetTimeStr = str(device.lastSettingsTime).encode('utf-8')
 							await client.send( device.devId, [('Set', len(device.postSettings), device.postSettings), ('Time', len(lastSetTimeStr), lastSetTimeStr)] )
 						elif datType.startswith(b'image'):
 							#print( 'sending img to browser' )
@@ -521,12 +489,17 @@ async def websocketHandler(websocket):
 							cmd = datType.strip()
 							val = datStr
 							print( 'action: ' + str(cmd) + ':' + str(val) + "|")
-							cmds.append( [cmd, val] )
+							device.cmds.append( [cmd, val] )
+							deviceWithNewCmds = device
 					else:
 						print( "dev %i not in devices" % client.devId )
 			mIdx += datLen
 			cmdIdx += 1
 			#print( " mIdx %i" % mIdx )
+		if deviceWithNewCmds: #send commands immediately to device instead of waiting for device to poll for them
+			cmdDatArr = GetCommandListBytes(deviceWithNewCmds.cmds)
+			print("sending immediately to %s commands %s" % ( str(deviceWithNewCmds.devId), str(cmdDatArr) ) )
+			await deviceWithNewCmds.send( svrDevId, cmdDatArr )
 
 
 
@@ -548,15 +521,10 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 			print("sending jpg")
 			self.send_header('Content-type','image/jpeg')
 			self.end_headers()
-			print("reading jpg")
+			#print("reading jpg")
 			jpgFile = f.read()
-			print("closing jpg file")
+			#print("closing jpg file")
 			f.close()
-			#jpgFile[0] = 0x0d
-			#jpgFile[1] = 0x0a
-			#jpgFile[2] = 0x0d
-			#jpgFile[3] = 0x0a
-			print("first bytes of jpg file %i %i %i %i" % (jpgFile[0], jpgFile[1], jpgFile[2], jpgFile[3]))
 			self.wfile.write(jpgFile)
 			f.close()
 			return
@@ -595,7 +563,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					self.send_header('Content-type','text/html')
 					self.end_headers()
 					cmd = parts[3]
-					print( 'action: ' + cmd)
+					print( 'action: ' + str(cmd))
 					val = parts[5]
 					cmds.append( [cmd, val] )
 					self.finish()
@@ -672,7 +640,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					output.write("<div id=\"cliId\" style=\"display:none;\">" + cliIdStr + "</div>")
 					for devId, dev in devices.items():
 						devIdStr = str(dev.devId)
-						output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\', [[\'devId\', ' + devIdStr + '],[\'cliId\', ' + cliIdStr + ']])">' + devIdStr + " : " + dev.description + '</button>')
+						output.write('<button onclick="gotoUrlPlusAuthKeyAndArgs(\'camControl.html\', [[\'devId\', ' + devIdStr + '],[\'cliId\', ' + cliIdStr + ']])">' + devIdStr + " : " + str(dev.description) + '</button>')
 					output.write("</body>")
 					output.write("</html>")
 
