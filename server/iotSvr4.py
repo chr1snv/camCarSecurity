@@ -47,8 +47,10 @@ def get_ssl_context(certfile, keyfile):
 	context.set_ciphers("@SECLEVEL=1:ALL")
 	return context
 
+strSendError = ""
 
 async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
+	global strSendError
 	if( pktNum >= 256 ):
 		pktNum = 0
 	sendHdr = lPadStr(3, str(pktNum) ) + lPadStr(4, str(fromDevId))
@@ -63,7 +65,8 @@ async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
 		await wSocket.send( sendHdr + str(len(datInfoArr)).encode('utf-8') + 's'.encode('utf-8') + sendBytes )
 		pktNum += 1
 	except Exception as e:
-		print("sendPkt error: %s" % str(e) )
+		strSendError = str(e)
+		#None#print("sendPkt error: %s" % str(e) )
 	return pktNum
 
 def curMillis():
@@ -119,7 +122,13 @@ class Device:
 		if self.wSock != None:
 			#print("send to device " )
 			#print(datInfoArr)
+			prevPktIdx = self.sendPktIdx
+			print( self.sendPktIdx )
 			self.sendPktIdx = await sendPkt(self.wSock, self.sendPktIdx, fromDevId, datInfoArr )
+			print( self.sendPktIdx ) 
+			if self.sendPktIdx != prevPktIdx:
+				return True
+		return False
 
 	def fillValues(self, postStr):
 		self.postStatus = postStr
@@ -169,7 +178,7 @@ class Client:
 					self.login[LOGIN_REMAINING_RESPONSES_IDX] -= 1
 					okToSend = True
 				else:
-					await logoutClient(client)
+					await logoutClient(self)
 					self.login = None #not sure if necessary because this client instance would then be garbage collected
 			else:
 				print("no login for cli not okToSend")
@@ -265,6 +274,30 @@ def GetCommandListBytes(cmds):
 	#print( 'sending Cmds %s' % outBytes )
 	return retArr#outBytes
 
+def putCmdList(cmds, cmdDatArr):
+	#add a command to list of not yet executed commands
+	#allow only 1 (most recent instance of command) 
+	#i.e. if angle commanded, only keep most recent one
+	print("putting cmds")
+	notPutNewCmdIdxs = []
+	for newCmdIdx in range(len(cmdDatArr)):
+		newCmd = cmdDatArr[newCmdIdx]
+		cmdPut = False
+		for i in range(len(cmds)):
+			queuedCmd = cmds[i]
+			if queuedCmd[0] == newCmd[0]:
+				cmds[i] = newCmd
+				cmdPut = True
+		if not cmdPut:
+			notPutNewCmdIdxs.append( newCmdIdx )
+	for idx in notPutNewCmdIdxs:
+		print("appendingCmd")
+		if len(cmds) < 1:
+			cmds[:] = [ cmdDatArr[idx] ]
+		else:
+			cmds[:].append( cmdDatArr[idx] )
+		print(len(cmds))
+
 def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
 	rqh.send_header("keep-alive", "timeout=5, max=30")
@@ -336,6 +369,7 @@ def rPadStr(n, chars):
 
 #https://www.optimizationcore.com/coding/websocket-python-parsing-binary-frames-from-a-tcp-socket/
 async def websocketHandler(websocket):
+	global strSendError
 	async for msg in websocket:#for _ in range(3):
 		#msg = await websocket.read_message()#frame(4096)
 		#print(msg[:50])
@@ -385,8 +419,9 @@ async def websocketHandler(websocket):
 					device.fillValues( datStr ) #read the status data in from device
 					#respond with queued commands
 					cmdDatArr = GetCommandListBytes(device.cmds)
-					#print("recvd Stat sending commands %d %s" % ( len(outBytes), outBytes ) )
-					await device.send( svrDevId, cmdDatArr )
+					print("recvd Stat sending commands %s" % ( cmdDatArr ) )
+					if not await device.send( svrDevId, cmdDatArr ):
+						putCmdList( deviceWithNewCmds.cmds, cmdDatArr )
 					lastStatTimeStr = str(device.lastStatusTime).encode('utf-8')
 					if client:
 						await client.send( device.devId, [('Stat', len(device.postStatus), device.postStatus), ('Time', len(lastStatTimeStr), lastStatTimeStr)] )
@@ -488,18 +523,22 @@ async def websocketHandler(websocket):
 						else:
 							cmd = datType.strip()
 							val = datStr
-							print( 'action: ' + str(cmd) + ':' + str(val) + "|")
-							device.cmds.append( [cmd, val] )
+							print( 'action: ' + str(cmd) + ':' + str(val) + "|" )
+							putCmdList( device.cmds, [ [cmd, val] ] )
 							deviceWithNewCmds = device
 					else:
 						print( "dev %i not in devices" % client.devId )
 			mIdx += datLen
 			cmdIdx += 1
 			#print( " mIdx %i" % mIdx )
-		if deviceWithNewCmds: #send commands immediately to device instead of waiting for device to poll for them
-			cmdDatArr = GetCommandListBytes(deviceWithNewCmds.cmds)
-			print("sending immediately to %s commands %s" % ( str(deviceWithNewCmds.devId), str(cmdDatArr) ) )
-			await deviceWithNewCmds.send( svrDevId, cmdDatArr )
+		#if deviceWithNewCmds: #send commands immediately to device instead of waiting for device to poll for them
+			#cmdDatArr = GetCommandListBytes(deviceWithNewCmds.cmds)
+			#print("sending immediately to %s commands %s" % ( str(deviceWithNewCmds.devId), str(cmdDatArr) ) )
+			#if not await deviceWithNewCmds.send( svrDevId, cmdDatArr ): #put back the unsent commands
+			#	putCmdList(deviceWithNewCmds.cmds, cmdDatArr)
+		if len(strSendError) > 0:
+			print(strSendError)
+			strSendError = ""
 
 
 
@@ -558,6 +597,7 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 				getKeyValid = GetKeyIsActive( parts[2].encode('utf-8') )
 
 			if getKeyValid: #then allowed to request the following
+				"""
 				if parts[1] == 'action':
 					self.send_response(200)
 					self.send_header('Content-type','text/html')
@@ -595,8 +635,8 @@ class HTTPAsyncHandler(http.server.SimpleHTTPRequestHandler):
 					self.wfile.write(device.lastImage)
 					self.finish()
 					return
-				
-				elif parts[1] == "camControl.html": #device control page
+				"""
+				if parts[1] == "camControl.html": #device control page
 					#self.path has /index.htm
 					devId = int(parts[4])
 					cliId = int(parts[6])

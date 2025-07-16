@@ -44,6 +44,7 @@ const uint8_t ServoOutputPins[] = {
 	};
 uint8_t numServos = 0;
 #define MAX_NUM_SERVOS 6
+#define ONE_PAST_MAX_NUM_SERVOS_MASK 0x40
 Servo servos[MAX_NUM_SERVOS];
 int servoAngles[MAX_NUM_SERVOS];
 int defaultServoAngles[MAX_NUM_SERVOS] = {90,90,90,  90,90,90};
@@ -111,52 +112,36 @@ uint8_t mainLoopDelayMillis = 100;
 #include "wifiConnection.h"
 #include "webserver.h"
 
-uint8_t CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( bool * unassignedServos, uint8_t val ){
-	if( unassignedServos[val] ){
-		unassignedServos[val] = false;
-		return val;
+uint8_t getClosestUnassigedServos( bool * unassignedServos, uint8_t selectedServos ){
+	uint8_t numServosToFind = 0;
+	uint8_t validServoMask = 0;
+	uint8_t selectedMask = 0x1;
+  for( uint8_t i = 0; i < 8; ++i ){
+		bool servoISelected = selectedServos & selectedMask;
+		if( servoISelected ){
+			if( unassignedServos[i] ){ //the selected servo is free to use
+				unassignedServos[i] = false; //mark it as used
+				validServoMask |= selectedMask;
+			}else{ //else increment number of servos to find
+				numServosToFind += 1;
+			}
+		}
+		selectedMask = selectedMask << 1;
 	}
-	for( uint8_t j = 0; j < MAX_NUM_SERVOS; ++j ){
-		if( unassignedServos[j] ){
-			unassignedServos[j] = false;
-			return j;
+	//if some servos weren't avaliable, search for alternates
+	for( uint8_t i = 0; i < numServosToFind; ++i ){
+		for( uint8_t j = 0; j < MAX_NUM_SERVOS; ++j ){
+			if( unassignedServos[j] ){
+				unassignedServos[j] = false;
+				validServoMask |= (0x1 << i);
+			}
 		}
 	}
+	return validServoMask;
 }
 
 void setup() {
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
-
-	//read config
-	preferences.begin("storedVals", true);
-		numServos = preferences.getUChar( "numServos" );
-		hasLight = preferences.getBool( "hasLight" );
-		hasMagSensor = preferences.getBool( "hasMagSensor" );
-		//read servo assignments
-		bool unassignedServos[MAX_NUM_SERVOS] = {true,true,true, true,true,true};
-		for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
-			uint8_t val = preferences.getUChar( "axSrv"+i, MAX_NUM_SERVOS+1 );
-			val = CheckIfServoNotYetAssignedOrGetFirstUnassigedServo( unassignedServos, val );
-			axToSrvos[i] = val;
-		}
-	preferences.end();
-
-	//setup servos
-	initServos();
-
-	//init lights
-	if( hasLight ){
-		pinMode(LightLEDPin, OUTPUT);
-		digitalWrite(redLEDPin, LOW);
-	}
-
-	//initalize sensor communications
-	if( hasMagSensor ){
-		ori_init();
-		ArmAlarm(false); //set the siren output low
-	}
-	temp_init();
-	camera_init();
 
 	//init serial ouput
 	Serial.begin(115200);
@@ -172,10 +157,51 @@ void setup() {
 	Serial.print("Free PSRAM: ");
 	Serial.println(ESP.getFreePsram());
 
+  //read config
+	preferences.begin("storedVals", true);
+		numServos = preferences.getUChar( "numServos" );
+    Serial.print("numServos "); Serial.println( numServos );
+		hasLight = preferences.getBool( "hasLight" );
+    Serial.print("hasLight "); Serial.println( hasLight );
+		hasMagSensor = preferences.getBool( "hasMagSensor" );
+    Serial.print("hasMagSensor "); Serial.println( hasMagSensor );
+		//read servo assignments
+		bool unassignedServos[8] = {false, false, true,true,true, true,true,true};
+		for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
+			uint8_t selectedServosMask = preferences.getUChar( "axSrv"+i, ONE_PAST_MAX_NUM_SERVOS_MASK ); //get value or default (1 past usable servos mask)
+      Serial.print( "axSrv " ); Serial.print( i ); Serial.print( " " ); Serial.print( selectedServosMask );
+			selectedServosMask = getClosestUnassigedServos( unassignedServos, selectedServosMask ); //get value or first next unassigned servos 
+      Serial.print( " after getFirstUnassigned " ); Serial.println( selectedServosMask );
+			axToSrvos[i] = selectedServosMask;
+		}
+	preferences.end();
+
+	//setup servos
+	initServos();
+
+	//init lights
+	if( hasLight ){
+    Serial.print(" init light ");
+		pinMode(LightLEDPin, OUTPUT);
+		digitalWrite(redLEDPin, LOW);
+	}
+
+	//initalize sensor communications
+	if( hasMagSensor ){
+    Serial.print(" init magSensor ");
+		ori_init();
+		ArmAlarm(false); //set the siren output low
+	}
+	temp_init();
+  Serial.print(" init camera ");
+	camera_init();
+
 	//turn on status led
+  Serial.print(" init status led ");
 	pinMode(redLEDPin, OUTPUT);
 	digitalWrite(redLEDPin, HIGH);
 
+  Serial.print(" init wifi ");
 	//esp_wifi_init();
 	connectWiFi(wifi_scanNetworks());
 
