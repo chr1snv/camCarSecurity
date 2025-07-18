@@ -42,6 +42,9 @@ const uint8_t ServoOutputPins[] = {
 		2,
 		4
 	};
+#define MAX_NUM_AXIES 6
+uint8_t numAxies = 0;
+uint8_t axAngles[MAX_NUM_AXIES] = {90,90,90,  90,90,90};
 uint8_t numServos = 0;
 #define MAX_NUM_SERVOS 6
 #define ONE_PAST_MAX_NUM_SERVOS_MASK 0x40
@@ -159,6 +162,8 @@ void setup() {
 
   //read config
 	preferences.begin("storedVals", true);
+		numAxies = preferences.getUChar( "numAxies" );
+		Serial.print("numAxies "); Serial.println( numAxies );
 		numServos = preferences.getUChar( "numServos" );
     Serial.print("numServos "); Serial.println( numServos );
 		hasLight = preferences.getBool( "hasLight" );

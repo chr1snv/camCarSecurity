@@ -54,7 +54,7 @@ uint16_t fillStatusString(char * outStr){
 	snprintf( &(outStr[idx]), 2+1,  "% 2u", numServos); idx += 2;
 
 	for( uint8_t i = 0; i < numServos; ++i ){
-		snprintf( &(outStr[idx]), 3+1,  "% 3u",servoAngles[i]); idx += 3;
+		snprintf( &(outStr[idx]), 3+1,  "% 3u",axAngles[i]); idx += 3;
 	}
 	//memset() //snprintf will set a \0 at end so don't need to memset
 	return idx+1;
@@ -283,6 +283,7 @@ uint8_t doCommand( const char * cmd, uint16_t valLen, const char * value ){
 		uint8_t axis = cmd[7] - '0';
 		uint8_t newAngle = atoir_n(&value[valLen-1], valLen);
 		if(axis <= numServos && newAngle <= 180) {
+			axAngles[axis] = newAngle;
 			uint8_t srvosForAxis = axToSrvos[axis];
 			//Serial.print( "axis " ); Serial.print( axis );
 			//Serial.print( " angle " ); Serial.print( newAngle );

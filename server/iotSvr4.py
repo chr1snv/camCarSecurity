@@ -53,7 +53,7 @@ async def sendPkt(wSocket, pktNum, fromDevId, datInfoArr ):
 	global strSendError
 	if( pktNum >= 256 ):
 		pktNum = 0
-	sendHdr = lPadStr(3, str(pktNum) ) + lPadStr(4, str(fromDevId))
+	sendHdr = lPadStr( 3, str(pktNum) ) + lPadStr(4, str(fromDevId) )
 	sendBytes = b''
 	for dInf in datInfoArr: #datInfoArr datType, datLen, dat
 		#print(dInf)
@@ -104,8 +104,8 @@ class Device:
 		self.magAY             = ""
 		self.magAZ             = ""
 
-		self.servo1Angle       = ""
-		self.servo2Angle       = ""
+		self.numServos         = 0
+		self.servoAngles       = []
 
 		self.staRssi           = ""
 		self.lastTemperature   = ""
@@ -130,9 +130,19 @@ class Device:
 				return True
 		return False
 
-	def fillValues(self, postStr):
-		self.postStatus = postStr
+	def fillValues(self, statStr):
+		self.postStatus = statStr
 		self.lastStatusTime = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+		cmdValArr = []
+		numSrvos = int( statStr[66:68] )
+		#print("stat numSrvos %i" % numSrvos)
+		idx = 68
+		for i in range(numSrvos):
+			cmdValArr.append( [ "angAxis"+str(i), statStr[idx:idx+3] ] )
+			idx += 3
+			#print( "a%i %i" % (i, int(cmdValArr[-1][1])) )
+		numCmdsCleared = clearCompletedCommands(self.cmds, cmdValArr)
+		print( "cmdsCleared %i" % numCmdsCleared )
 
 	def fillSettings(self, datStr, datStrLen ):
 		self.lastSettings = datStr
@@ -210,14 +220,14 @@ def cleanupNotRecentlyConnectedDevicesAndClients():
 			del clients[cli]
 
 def GetOrAllocateDevice( devId ):
-	if not (devId in devices.keys() ):
+	if not ( devId in devices.keys() ):
 		dev = Device()
 		dev.devId = devId
 		devices[devId] = dev
 	return devices[devId]
 
 def GetOrAllocateClient( cliId ):
-	if not (cliId in clients.keys() ):
+	if not ( cliId in clients.keys() ):
 		cli = Client()
 		cli.cliId = cliId
 		clients[cliId] = cli
@@ -269,7 +279,7 @@ def GetCommandListBytes(cmds):
 		#output.write( dat )
 		retArr.append( (cmdPart, len(dat), dat) )
 	#in python "assigning something to elements of that list, will change the original list ( reason for [:] (selection of all elements of the list))"
-	cmds[:] = cmds[numCmdsToSend:] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
+	#cmds[:] = cmds[numCmdsToSend:] #should add wait for device to confirm recept of commands, though clearing it here now for simplicity
 	#outBytes = output.getvalue()#.encode('utf-8')
 	#print( 'sending Cmds %s' % outBytes )
 	return retArr#outBytes
@@ -290,13 +300,47 @@ def putCmdList(cmds, cmdDatArr):
 				cmdPut = True
 		if not cmdPut:
 			notPutNewCmdIdxs.append( newCmdIdx )
-	for idx in notPutNewCmdIdxs:
-		print("appendingCmd")
+	for i in range(len(notPutNewCmdIdxs)):
+		newCmd = cmdDatArr[notPutNewCmdIdxs[i]]
+		print("appendingCmd %s" % newCmd[0])
 		if len(cmds) < 1:
-			cmds[:] = [ cmdDatArr[idx] ]
+			cmds[:] = [ newCmd ]
 		else:
-			cmds[:].append( cmdDatArr[idx] )
-		print(len(cmds))
+			cmds[:].append( newCmd )
+	print(len(cmds))
+
+def clearCompletedCommands(cmds, cmdValArr):
+	#check most recent recieved statuses from device (in corresponding command format)
+	#to find if commands have been applied or if they need to be sent again
+	numCmdsCleared = 0
+	
+	#clear non servo position commands (could check command types later)
+	numCmds = len(cmds)
+	i = 0
+	while i < numCmds:
+		cmd = cmds[i]
+		if cmd[0][:7] != b'angAxis':
+			print("clearing %s" % str(cmd[0][:7]) )
+			del cmds[i]
+			numCmds -= 1
+			numCmdsCleared += 1
+		i += 1
+	
+	#clear servo commanded positions if met
+	for newValIdx in range(len(cmdValArr)):
+		newVal = cmdValArr[newValIdx]
+		for cmdIdx in range(len(cmds)):
+			cmd = cmds[cmdIdx]
+			newCmdType = bytes(newVal[0], 'utf8')
+			#print( "cmp %s %s %i %i" % (newCmdType, cmd[0], int(newVal[1]), int(cmd[1])) )
+			if newCmdType == cmd[0] and int(newVal[1]) == int(cmd[1]):
+				#print( "clear match %s %s" % ( str(cmd), str(newVal) ) )
+				del cmds[cmdIdx]
+				numCmdsCleared += 1
+				break
+	
+	#return a count of how many cleared (to know if things changed)
+	return numCmdsCleared
 
 def setKeepAlive(rqh):
 	rqh.send_header("Connection", "keep-alive")
@@ -531,11 +575,11 @@ async def websocketHandler(websocket):
 			mIdx += datLen
 			cmdIdx += 1
 			#print( " mIdx %i" % mIdx )
-		#if deviceWithNewCmds: #send commands immediately to device instead of waiting for device to poll for them
-			#cmdDatArr = GetCommandListBytes(deviceWithNewCmds.cmds)
-			#print("sending immediately to %s commands %s" % ( str(deviceWithNewCmds.devId), str(cmdDatArr) ) )
-			#if not await deviceWithNewCmds.send( svrDevId, cmdDatArr ): #put back the unsent commands
-			#	putCmdList(deviceWithNewCmds.cmds, cmdDatArr)
+		if deviceWithNewCmds: #send commands immediately to device instead of waiting for device to poll for them
+			cmdDatArr = GetCommandListBytes(deviceWithNewCmds.cmds)
+			print("sending immediately to %s commands %s" % ( str(deviceWithNewCmds.devId), str(cmdDatArr) ) )
+			if not await deviceWithNewCmds.send( svrDevId, cmdDatArr ): #put back the unsent commands
+				putCmdList(deviceWithNewCmds.cmds, cmdDatArr)
 		if len(strSendError) > 0:
 			print(strSendError)
 			strSendError = ""
