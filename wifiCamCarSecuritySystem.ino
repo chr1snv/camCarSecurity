@@ -120,8 +120,9 @@ uint8_t getClosestUnassigedServos( bool * unassignedServos, uint8_t selectedServ
 	uint8_t validServoMask = 0;
 	uint8_t selectedMask = 0x1;
   for( uint8_t i = 0; i < 8; ++i ){
-		bool servoISelected = selectedServos & selectedMask;
+		bool servoISelected = (selectedServos & selectedMask) != 0;
 		if( servoISelected ){
+			Serial.print( "servo " ); Serial.print( i ); Serial.println( " selected" );
 			if( unassignedServos[i] ){ //the selected servo is free to use
 				unassignedServos[i] = false; //mark it as used
 				validServoMask |= selectedMask;
@@ -132,11 +133,13 @@ uint8_t getClosestUnassigedServos( bool * unassignedServos, uint8_t selectedServ
 		selectedMask = selectedMask << 1;
 	}
 	//if some servos weren't avaliable, search for alternates
+	Serial.print( "numServosTo Find " ); Serial.println( numServosToFind );
 	for( uint8_t i = 0; i < numServosToFind; ++i ){
 		for( uint8_t j = 0; j < MAX_NUM_SERVOS; ++j ){
 			if( unassignedServos[j] ){
 				unassignedServos[j] = false;
-				validServoMask |= (0x1 << i);
+				validServoMask |= (0x1 << j);
+				Serial.print("assigningServo " ); Serial.print( j ); Serial.print( " mask 0x"); Serial.println( validServoMask, HEX );
 			}
 		}
 	}
@@ -165,18 +168,21 @@ void setup() {
 		numAxies = preferences.getUChar( "numAxies" );
 		Serial.print("numAxies "); Serial.println( numAxies );
 		numServos = preferences.getUChar( "numServos" );
-    Serial.print("numServos "); Serial.println( numServos );
+		Serial.print("numServos "); Serial.println( numServos );
 		hasLight = preferences.getBool( "hasLight" );
-    Serial.print("hasLight "); Serial.println( hasLight );
+		Serial.print("hasLight "); Serial.println( hasLight );
 		hasMagSensor = preferences.getBool( "hasMagSensor" );
-    Serial.print("hasMagSensor "); Serial.println( hasMagSensor );
+		Serial.print("hasMagSensor "); Serial.println( hasMagSensor );
 		//read servo assignments
-		bool unassignedServos[8] = {false, false, true,true,true, true,true,true};
+		bool unassignedServos[MAX_NUM_SERVOS] = { true,true,true, true,true,true };
 		for(uint8_t i = 0; i < MAX_NUM_SERVOS; ++i ){
 			uint8_t selectedServosMask = preferences.getUChar( "axSrv"+i, ONE_PAST_MAX_NUM_SERVOS_MASK ); //get value or default (1 past usable servos mask)
-      Serial.print( "axSrv " ); Serial.print( i ); Serial.print( " " ); Serial.print( selectedServosMask );
+			Serial.print( "unassignedServos " ); 
+			for(uint8_t m = 0; m < MAX_NUM_SERVOS; ++m )
+				Serial.print( unassignedServos[m] != 0 );
+			Serial.print( " axSrv " ); Serial.print( i ); Serial.print( " 0x" ); Serial.println( selectedServosMask, HEX );
 			selectedServosMask = getClosestUnassigedServos( unassignedServos, selectedServosMask ); //get value or first next unassigned servos 
-      Serial.print( " after getFirstUnassigned " ); Serial.println( selectedServosMask );
+			Serial.print( " after getFirstUnassigned 0x" ); Serial.println( selectedServosMask, HEX ); Serial.print( '\n' );
 			axToSrvos[i] = selectedServosMask;
 		}
 	preferences.end();
