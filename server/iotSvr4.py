@@ -265,6 +265,7 @@ async def logoutClient(client):
 def GetCommandListBytes(cmds):
 	#output = io.BytesIO()
 	numCmdsToSend = min(9, len(cmds))
+	#print( "numCmds in getList %i" % numCmdsToSend )
 	#output.write( str(numCmdsToSend).encode('utf-8') ) #number of commands
 	#output.write( b's' ) #commands are from server
 	retArr = []
@@ -306,7 +307,7 @@ def putCmdList(cmds, cmdDatArr):
 		if len(cmds) < 1:
 			cmds[:] = [ newCmd ]
 		else:
-			cmds[:].append( newCmd )
+			cmds.append( newCmd )
 	print(len(cmds))
 
 def clearCompletedCommands(cmds, cmdValArr):
